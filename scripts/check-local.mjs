@@ -112,6 +112,82 @@ function assertEffectsGate() {
   if (!cfg.includes("missForgivenessMs")) {
     throw new Error("effects-config.js must define missForgivenessMs");
   }
+  for (const id of ["overcharge", "neon_orb", "quake"]) {
+    if (!cfg.includes(`${id}:`)) {
+      throw new Error(`effects-config.js must define ${id}`);
+    }
+  }
+  if (!src.includes("_isOrb") || !src.includes("_rampValue") || !src.includes("jitterAmp")) {
+    throw new Error("effects.js must implement orb / overcharge / quake dynamics");
+  }
+}
+
+async function assertNewEffects() {
+  const { EFFECTS_CONFIG } = await import(join(root, "js/effects-config.js"));
+  const needed = ["overcharge", "neon_orb", "quake"];
+  for (const id of needed) {
+    const def = EFFECTS_CONFIG.effects[id];
+    if (!def || def.enabled === false) {
+      throw new Error(`${id} must be present and enabled`);
+    }
+  }
+  if (EFFECTS_CONFIG.effects.overcharge.polarity !== "positive") {
+    throw new Error("overcharge must stay positive");
+  }
+  if (EFFECTS_CONFIG.effects.neon_orb.polarity !== "positive") {
+    throw new Error("neon_orb must stay positive");
+  }
+  if (EFFECTS_CONFIG.effects.quake.polarity !== "negative") {
+    throw new Error("quake must stay negative");
+  }
+
+  if (typeof globalThis.Image === "undefined") {
+    globalThis.Image = class {
+      constructor() {
+        this.src = "";
+        this.decoding = "";
+      }
+    };
+  }
+
+  const { EffectRuntime } = await import(join(root, "js/effects.js"));
+  const noopList = { remove() {}, toggle() {}, add() {} };
+  const rim = { hidden: true, classList: noopList };
+  const countdown = { hidden: true, textContent: "", classList: noopList };
+  const label = { textContent: "", classList: noopList, style: {} };
+  const fx = new EffectRuntime({
+    rimEl: /** @type {any} */ (rim),
+    countdownEl: /** @type {any} */ (countdown),
+    labelEl: /** @type {any} */ (label),
+  });
+  fx.autoSchedule = false;
+
+  fx.beginEffect("overcharge");
+  const hit = { hitCube: true, hitPhoto: false, twinRole: null, sequenceNumber: null };
+  if (fx.resolveClick(hit) !== 2) throw new Error("overcharge first hit must be ×2");
+  if (fx.resolveClick(hit) !== 3) throw new Error("overcharge second hit must be ×3");
+  if (fx.resolveClick({ hitCube: false, hitPhoto: false }) !== -1) {
+    throw new Error("overcharge miss must reset with classic −1");
+  }
+  if (fx.resolveClick(hit) !== 2) throw new Error("overcharge must restart at ×2 after miss");
+
+  fx.beginEffect("neon_orb");
+  if (fx.resolveClick({ hitCube: false, hitPhoto: true }) !== 12) {
+    throw new Error("neon_orb photo/orb hit must award orbHit");
+  }
+  if (fx.resolveClick(hit) !== 1) throw new Error("neon_orb cube hit must stay +1");
+
+  fx.beginEffect("quake");
+  if (fx.resolveClick({ hitCube: false, hitPhoto: false }) !== -3) {
+    throw new Error("quake miss must use −3");
+  }
+  if (fx.resolveClick(hit) !== 1) throw new Error("quake cube hit must stay +1");
+
+  const i18n = readFileSync(join(root, "js/i18n.js"), "utf8");
+  for (const key of ["effectOvercharge", "effectNeonOrb", "effectQuake"]) {
+    const count = i18n.split(key).length - 1;
+    if (count < 5) throw new Error(`${key} must appear in all 5 locales (found ${count})`);
+  }
 }
 
 async function assertOnboardingTip() {
@@ -474,6 +550,7 @@ async function main() {
   assertHtml();
   assertI18n();
   assertEffectsGate();
+  await assertNewEffects();
   await assertOnboardingTip();
   await assertMilestones();
   await assertMissForgiveness();

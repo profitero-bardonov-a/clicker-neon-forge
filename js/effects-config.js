@@ -6,13 +6,13 @@
  */
 export const EFFECTS_CONFIG = {
   common: {
-    /** Wait before next effect (ms). */
-    scheduleDelayMinMs: 6_000,
-    scheduleDelayMaxMs: 12_000,
+    /** Wait before next effect (ms). Slightly tighter for more on-screen energy. */
+    scheduleDelayMinMs: 5_000,
+    scheduleDelayMaxMs: 10_000,
 
     /** Active effect length (ms). */
     durationMinMs: 7_000,
-    durationMaxMs: 10_000,
+    durationMaxMs: 10_500,
 
     /** Default click deltas when an effect does not override them. */
     hit: 1,
@@ -109,7 +109,26 @@ export const EFFECTS_CONFIG = {
       scaleFactor: 0.5,
       speedMin: 90,
       speedMax: 170,
+      /** Speeds up over the effect lifetime (px/s² toward speedMax). */
+      accel: 55,
       margin: 56,
+    },
+
+    /**
+     * Quake: small fast cube with screen jitter; empty taps hurt more.
+     */
+    quake: {
+      polarity: "negative",
+      labelKey: "effectQuake",
+      enabled: true,
+      scaleFactor: 0.58,
+      speedMin: 160,
+      speedMax: 280,
+      accel: 70,
+      margin: 48,
+      /** Random layout offset amplitude (px). */
+      jitterAmp: 16,
+      miss: -3,
     },
 
     invert_clicks: {
@@ -162,6 +181,32 @@ export const EFFECTS_CONFIG = {
       reshuffleOnHit: true,
       /** Glyph painted on each face. */
       faceMark: "?",
+    },
+
+    /**
+     * Overcharge: cube-hit multiplier ramps ×2 → ×6 while the effect lasts.
+     * Miss resets the ramp (still classic −1).
+     */
+    overcharge: {
+      polarity: "positive",
+      labelKey: "effectOvercharge",
+      enabled: true,
+      rampStart: 2,
+      rampStep: 1,
+      rampMax: 6,
+    },
+
+    /**
+     * Neon orb: chase a glowing collectible for a fat bonus; cube still scores.
+     */
+    neon_orb: {
+      polarity: "positive",
+      labelKey: "effectNeonOrb",
+      enabled: true,
+      orbHit: 12,
+      sizeFactor: 1.5,
+      speedMin: 170,
+      speedMax: 320,
     },
   },
 };
