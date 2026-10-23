@@ -23,6 +23,8 @@ const required = [
   "js/analytics.js",
   "js/onboarding-tip.js",
   "js/milestones.js",
+  "js/cosmetics.js",
+  "js/shop.js",
   "js/effects-config.js",
   "js/effects.js",
   "js/float-texts.js",
@@ -67,6 +69,9 @@ function assertHtml() {
     'id="tap-hint"',
     'id="effects-tip"',
     'id="milestone-toast"',
+    'id="forge-shop"',
+    'id="shop-open"',
+    'id="shop-list"',
     'src="js/main.js"',
   ]) {
     if (!html.includes(needle)) {
@@ -89,6 +94,19 @@ function assertI18n() {
   for (const key of ["effectsTipTitle", "effectsTipBody", "effectsTipGotIt", "milestoneToast"]) {
     if (!src.includes(key)) {
       throw new Error(`i18n.js must include ${key} for onboarding tip / milestones`);
+    }
+  }
+  for (const key of [
+    "shopOpen",
+    "shopTitle",
+    "shopBuy",
+    "shopItem_rim_cyan",
+    "shopItem_rim_magenta",
+    "shopItem_sparks_ember",
+  ]) {
+    const count = src.split(key).length - 1;
+    if (count < 5) {
+      throw new Error(`i18n.js must include ${key} in all 5 locales (found ${count})`);
     }
   }
 }
@@ -470,6 +488,105 @@ async function assertMissForgiveness() {
   }
 }
 
+async function assertForgeShop() {
+  const {
+    COSMETICS_STORAGE_KEY,
+    SHOP_CATALOG,
+    purchaseCosmetic,
+    readCosmetics,
+    writeCosmetics,
+  } = await import(join(root, "js/cosmetics.js"));
+
+  if (COSMETICS_STORAGE_KEY !== "neon-forge-cosmetics") {
+    throw new Error("cosmetics storage key must stay neon-forge-cosmetics");
+  }
+  const prices = Object.fromEntries(SHOP_CATALOG.map((s) => [s.id, s.price]));
+  if (prices.rim_cyan !== 50 || prices.rim_magenta !== 100 || prices.sparks_ember !== 150) {
+    throw new Error("shop prices must be cyan 50 / magenta 100 / ember 150");
+  }
+  for (const sku of SHOP_CATALOG) {
+    if (sku.slot !== "rim" && sku.slot !== "sparks") {
+      throw new Error("shop SKUs must be visual rim/sparks only");
+    }
+  }
+
+  const store = new Map();
+  const localStorageStub = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+  };
+  const prevLs = globalThis.localStorage;
+  globalThis.localStorage = localStorageStub;
+
+  try {
+    /** @type {string[]} */
+    const events = [];
+    /** @type {unknown[]} */
+    const eventParams = [];
+    const prevGtag = /** @type {any} */ (globalThis).gtag;
+    /** @type {any} */ (globalThis).gtag = (cmd, name, params) => {
+      if (cmd === "event") {
+        events.push(String(name));
+        eventParams.push(params);
+      }
+    };
+
+    writeCosmetics({ owned: [], equipped: { rim: null, sparks: null } });
+
+    /** @type {{ score: number, add: (n: number) => void }} */
+    const scores = {
+      score: 49,
+      add(n) {
+        this.score += n;
+      },
+    };
+
+    const broke = purchaseCosmetic({ itemId: "rim_cyan", scores });
+    if (broke.ok || scores.score !== 49) {
+      throw new Error("buy with 49 clicks must fail without deducting");
+    }
+
+    scores.score = 50;
+    const bought = purchaseCosmetic({ itemId: "rim_cyan", scores });
+    if (!bought.ok) throw new Error("buy with 50 clicks must succeed");
+    if (scores.score !== 0) throw new Error("buy must deduct score via ScoreStore.add");
+    if (!events.includes("shop_buy")) throw new Error("missing shop_buy event");
+    const buyParams = eventParams.find((_, i) => events[i] === "shop_buy");
+    if (!buyParams || /** @type {any} */ (buyParams).item_id !== "rim_cyan") {
+      throw new Error("shop_buy must pass item_id");
+    }
+    if (/** @type {any} */ (buyParams).value !== 50) {
+      throw new Error("shop_buy value must equal price");
+    }
+
+    const persisted = readCosmetics();
+    if (!persisted.owned.includes("rim_cyan") || persisted.equipped.rim !== "rim_cyan") {
+      throw new Error("owned+equipped must persist in neon-forge-cosmetics");
+    }
+
+    const again = purchaseCosmetic({ itemId: "rim_cyan", scores: { score: 999, add() {} } });
+    if (again.ok) throw new Error("already-owned buy must fail");
+
+    const mainSrc = readFileSync(join(root, "js/main.js"), "utf8");
+    if (!mainSrc.includes("initShop")) {
+      throw new Error("main.js must wire initShop");
+    }
+    const scoreStore = readFileSync(join(root, "js/score-store.js"), "utf8");
+    if (!scoreStore.includes("add(delta)")) {
+      throw new Error("ScoreStore must expose add for shop spend");
+    }
+    const cosmeticsSrc = readFileSync(join(root, "js/cosmetics.js"), "utf8");
+    if (!cosmeticsSrc.includes("scores.add(-sku.price)")) {
+      throw new Error("purchase must deduct score via scores.add(-sku.price)");
+    }
+
+    /** @type {any} */ (globalThis).gtag = prevGtag;
+  } finally {
+    if (prevLs === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevLs;
+  }
+}
+
 async function assertLeaderboardHygiene() {
   const { isPublicLeaderScore, filterPublicLeaders, MIN_PUBLIC_CLICKS } = await import(
     join(root, "js/leaderboard-rules.js")
@@ -554,6 +671,7 @@ async function main() {
   await assertOnboardingTip();
   await assertMilestones();
   await assertMissForgiveness();
+  await assertForgeShop();
   await assertLeaderboardHygiene();
   await serveAndFetch();
   console.log("Local check passed");
