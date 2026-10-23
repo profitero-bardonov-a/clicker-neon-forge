@@ -7,6 +7,7 @@ import {
   LEADERBOARD_STUBS,
   LEADERBOARD_STUBS_TOTAL,
 } from "./leaderboard-stubs.js";
+import { filterPublicLeaders } from "./leaderboard-rules.js";
 import { trackEvent } from "./analytics.js";
 
 export class Leaderboard {
@@ -111,8 +112,9 @@ export class Leaderboard {
   _applyStubs() {
     this._usingStubs = true;
     this._offline = false;
-    this._leaders = [...LEADERBOARD_STUBS];
-    this._total = LEADERBOARD_STUBS_TOTAL;
+    // Stubs may include deliberate junk rows to exercise hygiene locally.
+    this._leaders = filterPublicLeaders([...LEADERBOARD_STUBS]);
+    this._total = Math.max(this._leaders.length, LEADERBOARD_STUBS_TOTAL);
     this._render(this._leaders);
     this.statusEl.textContent = "DEV";
   }
@@ -156,9 +158,12 @@ export class Leaderboard {
       const data = await res.json();
       this._offline = false;
       this._usingStubs = false;
-      this._leaders = Array.isArray(data.leaders) ? data.leaders : [];
+      // Defense in depth if an older function build still returns ≤0 rows.
+      this._leaders = filterPublicLeaders(Array.isArray(data.leaders) ? data.leaders : []);
       const total = Math.floor(Number(data.total));
-      this._total = Number.isFinite(total) ? total : this._leaders.length;
+      this._total = Number.isFinite(total)
+        ? Math.max(this._leaders.length, total)
+        : this._leaders.length;
       this._render(this._leaders);
       this.statusEl.textContent = "";
     } catch {

@@ -1,6 +1,8 @@
 import { getDatabase } from "@netlify/database";
 
 const LIMIT = 100;
+/** Keep in sync with js/leaderboard-rules.js MIN_PUBLIC_CLICKS. */
+const MIN_PUBLIC_CLICKS = 1;
 
 /**
  * @param {unknown} value
@@ -31,6 +33,7 @@ export default async (req) => {
   }
 
   const db = getDatabase();
+  // Hygiene: hide never-engaged (0) and idle-drain negatives from the public top.
   const [rows, countRows] = await Promise.all([
     db.sql`
       SELECT
@@ -39,12 +42,14 @@ export default async (req) => {
         clicks,
         (updated_at >= NOW() - INTERVAL '5 minutes') AS online
       FROM scores
+      WHERE clicks >= ${MIN_PUBLIC_CLICKS}
       ORDER BY clicks DESC, updated_at ASC
       LIMIT ${LIMIT}
     `,
     db.sql`
       SELECT COUNT(*)::int AS total
       FROM scores
+      WHERE clicks >= ${MIN_PUBLIC_CLICKS}
     `,
   ]);
 

@@ -49,9 +49,15 @@ function stubClicks(rank) {
   return Math.max(12, Math.floor(top - decay * 95 - rank * 37));
 }
 
+/** Deliberate junk rows — filtered out by leaderboard hygiene (local DEV only). */
+const HYGIENE_JUNK = Object.freeze([
+  { rank: 101, name: "Idle Drain", avatarUrl: null, clicks: 0, online: false },
+  { rank: 102, name: "Angry Turnip", avatarUrl: null, clicks: -703, online: false },
+]);
+
 /** @type {ReadonlyArray<{ rank: number, name: string, avatarUrl: string | null, clicks: number, online: boolean }>} */
-export const LEADERBOARD_STUBS = Object.freeze(
-  Array.from({ length: 100 }, (_, i) => {
+export const LEADERBOARD_STUBS = Object.freeze([
+  ...Array.from({ length: 100 }, (_, i) => {
     const rank = i + 1;
     return {
       rank,
@@ -60,8 +66,9 @@ export const LEADERBOARD_STUBS = Object.freeze(
       clicks: stubClicks(rank),
       online: rank <= 5 || rank % 11 === 0,
     };
-  })
-);
+  }),
+  ...HYGIENE_JUNK,
+]);
 
 /** @returns {boolean} */
 export function isLocalDevHost() {

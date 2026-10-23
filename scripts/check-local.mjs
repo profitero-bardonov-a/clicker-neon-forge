@@ -18,6 +18,7 @@ const required = [
   "js/auth.js",
   "js/leaderboard.js",
   "js/leaderboard-stubs.js",
+  "js/leaderboard-rules.js",
   "js/score-store.js",
   "js/analytics.js",
   "js/effects-config.js",
@@ -94,6 +95,42 @@ function assertEffectsGate() {
   }
 }
 
+async function assertLeaderboardHygiene() {
+  const { isPublicLeaderScore, filterPublicLeaders, MIN_PUBLIC_CLICKS } = await import(
+    join(root, "js/leaderboard-rules.js")
+  );
+  if (MIN_PUBLIC_CLICKS !== 1) {
+    throw new Error("MIN_PUBLIC_CLICKS must stay 1 unless DECISIONS.md is updated");
+  }
+  if (isPublicLeaderScore(0) || isPublicLeaderScore(-703) || isPublicLeaderScore(-1)) {
+    throw new Error("scores <= 0 must not be public leaders");
+  }
+  if (!isPublicLeaderScore(1) || !isPublicLeaderScore(80755)) {
+    throw new Error("positive scores must remain public leaders");
+  }
+  const filtered = filterPublicLeaders([
+    { rank: 1, name: "A", clicks: 10 },
+    { rank: 2, name: "Idle", clicks: 0 },
+    { rank: 3, name: "Drain", clicks: -5 },
+    { rank: 4, name: "B", clicks: 3 },
+  ]);
+  if (filtered.length !== 2 || filtered[0].name !== "A" || filtered[0].rank !== 1) {
+    throw new Error("filterPublicLeaders must drop <=0 and renumber ranks");
+  }
+  if (filtered[1].name !== "B" || filtered[1].rank !== 2) {
+    throw new Error("filterPublicLeaders rank renumber failed");
+  }
+
+  const fn = readFileSync(join(root, "netlify/functions/leaderboard.mjs"), "utf8");
+  if (!fn.includes("MIN_PUBLIC_CLICKS") || !fn.includes("WHERE clicks >=")) {
+    throw new Error("leaderboard function must filter clicks >= MIN_PUBLIC_CLICKS");
+  }
+  const client = readFileSync(join(root, "js/leaderboard.js"), "utf8");
+  if (!client.includes("filterPublicLeaders")) {
+    throw new Error("leaderboard.js must apply filterPublicLeaders");
+  }
+}
+
 async function serveAndFetch() {
   const server = createServer((req, res) => {
     try {
@@ -138,6 +175,7 @@ async function main() {
   assertHtml();
   assertI18n();
   assertEffectsGate();
+  await assertLeaderboardHygiene();
   await serveAndFetch();
   console.log("Local check passed");
 }
