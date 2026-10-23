@@ -131,12 +131,24 @@ function assertI18n() {
 async function assertAudio() {
   const {
     SOUND_MUTED_KEY,
+    MASTER_GAIN,
+    BED_BUS_GAIN,
+    CLICK_PEAK_GAIN,
     GameAudio,
     readSoundMuted,
     writeSoundMuted,
   } = await import(join(root, "js/audio.js"));
   if (SOUND_MUTED_KEY !== "neon-forge-sound-muted") {
     throw new Error("sound mute storage key must stay neon-forge-sound-muted");
+  }
+  if (!(MASTER_GAIN >= 0.25 && MASTER_GAIN <= 0.4)) {
+    throw new Error(`MASTER_GAIN out of expected audible range (got ${MASTER_GAIN})`);
+  }
+  if (!(BED_BUS_GAIN >= 2.2 && BED_BUS_GAIN <= 3.2)) {
+    throw new Error(`BED_BUS_GAIN must stay ~2–3× louder bed (got ${BED_BUS_GAIN})`);
+  }
+  if (!(CLICK_PEAK_GAIN >= 0.28 && CLICK_PEAK_GAIN <= 0.45)) {
+    throw new Error(`CLICK_PEAK_GAIN should stay audible vs louder bed (got ${CLICK_PEAK_GAIN})`);
   }
 
   const store = new Map();
