@@ -88,6 +88,9 @@ export class EffectRuntime {
     this._nextAt = 0;
     this._lastPhysicalAt = 0;
     this._idleAcc = 0;
+    /** performance.now() deadline for classic −1 miss forgiveness; 0 = off */
+    this._forgivenessUntil = 0;
+    this._forgivenessArmed = false;
 
     this._cubeOffX = 0;
     this._cubeOffY = 0;
@@ -183,6 +186,27 @@ export class EffectRuntime {
     }
     if (this._nextAt > 0) this._nextAt += ms;
     if (this._lastPhysicalAt > 0) this._lastPhysicalAt += ms;
+    if (this._forgivenessUntil > 0) this._forgivenessUntil += ms;
+  }
+
+  /**
+   * Start the new-player miss forgiveness window (idempotent).
+   * Call once after the first click for a zero-score session.
+   */
+  armMissForgiveness() {
+    if (this._forgivenessArmed) return;
+    this._forgivenessArmed = true;
+    const ms = Number(CFG.common.missForgivenessMs) || 0;
+    if (ms <= 0) {
+      this._forgivenessUntil = 0;
+      return;
+    }
+    this._forgivenessUntil = performance.now() + ms;
+  }
+
+  /** @returns {boolean} */
+  isMissForgivenessActive() {
+    return this._forgivenessUntil > 0 && performance.now() < this._forgivenessUntil;
   }
 
   hideChrome() {
@@ -944,6 +968,29 @@ export class EffectRuntime {
    * @param {{ hitCube: boolean, hitPhoto: boolean, twinRole?: "good" | "bad" | null, sequenceNumber?: number | null }} hit
    */
   resolveClick(hit) {
+    const delta = this._resolveClickRaw(hit);
+    if (this._shouldForgiveMiss(delta, hit)) return 0;
+    return delta;
+  }
+
+  /**
+   * Soften only the classic empty-space −1 miss during the new-player window.
+   * @param {number} delta
+   * @param {{ hitCube: boolean, hitPhoto: boolean, twinRole?: "good" | "bad" | null, sequenceNumber?: number | null }} hit
+   */
+  _shouldForgiveMiss(delta, hit) {
+    if (!this.isMissForgivenessActive()) return false;
+    if (delta !== CFG.common.miss) return false;
+    if (hit.hitCube || hit.hitPhoto) return false;
+    if (hit.twinRole) return false;
+    if (hit.sequenceNumber != null) return false;
+    return true;
+  }
+
+  /**
+   * @param {{ hitCube: boolean, hitPhoto: boolean, twinRole?: "good" | "bad" | null, sequenceNumber?: number | null }} hit
+   */
+  _resolveClickRaw(hit) {
     const common = CFG.common;
     const def = this.active?.def;
 

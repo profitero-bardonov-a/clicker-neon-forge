@@ -19,6 +19,14 @@ export const EFFECTS_CONFIG = {
     miss: -1,
 
     /**
+     * New players only: after the first click, classic empty-space misses
+     * that would score `miss` (−1) become 0 for this many ms.
+     * Does not soften large effect penalties (−10 / −100) or photo/twin hits.
+     * Set to 0 to disable.
+     */
+    missForgivenessMs: 8_000,
+
+    /**
      * Negative effects: after this pause without a click, the score drains.
      * Set the interval or the amount to 0 to turn the drain off.
      */

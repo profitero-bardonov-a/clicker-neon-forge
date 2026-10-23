@@ -201,8 +201,11 @@ function maybeShowTapHint() {
   tapHint.setAttribute("aria-hidden", "false");
 }
 
+/** Zero local score at load → first-session coaching + miss forgiveness. */
+const newPlayerSession = scores.score === 0 && !isDemoMode();
+
 // Returning players already know the loop — resume chaos immediately.
-if (scores.score !== 0 || isDemoMode()) {
+if (!newPlayerSession) {
   effects.armSchedule();
 } else {
   maybeShowTapHint();
@@ -437,6 +440,8 @@ function onPointerDown(e) {
   }
 
   effects.notifyPhysicalClick();
+  if (newPlayerSession) effects.armMissForgiveness();
+
   const delta = effects.resolveClick({
     hitCube: Boolean(hit),
     hitPhoto,
@@ -454,6 +459,7 @@ function onPointerDown(e) {
     trackEvent("first_click", {
       hit_cube: Boolean(hit),
       score_after: scores.score,
+      miss_forgiven: delta === 0 && !hit && !hitPhoto,
     });
   }
 

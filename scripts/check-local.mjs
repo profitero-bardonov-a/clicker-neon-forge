@@ -89,9 +89,70 @@ function assertEffectsGate() {
   if (!src.includes("armSchedule")) {
     throw new Error("effects.js must expose armSchedule for first-click gate");
   }
+  if (!src.includes("armMissForgiveness") || !src.includes("_shouldForgiveMiss")) {
+    throw new Error("effects.js must implement miss-click forgiveness");
+  }
   const main = readFileSync(join(root, "js/main.js"), "utf8");
   if (!main.includes("armSchedule") || !main.includes("first_click")) {
     throw new Error("main.js must gate effects and track first_click");
+  }
+  if (!main.includes("armMissForgiveness") || !main.includes("newPlayerSession")) {
+    throw new Error("main.js must arm miss forgiveness for new-player sessions");
+  }
+  const cfg = readFileSync(join(root, "js/effects-config.js"), "utf8");
+  if (!cfg.includes("missForgivenessMs")) {
+    throw new Error("effects-config.js must define missForgivenessMs");
+  }
+}
+
+async function assertMissForgiveness() {
+  const { EFFECTS_CONFIG } = await import(join(root, "js/effects-config.js"));
+  const ms = EFFECTS_CONFIG.common.missForgivenessMs;
+  if (!(ms >= 1000 && ms <= 30_000)) {
+    throw new Error("missForgivenessMs should stay in a short first-session window (1–30s)");
+  }
+  if (EFFECTS_CONFIG.common.miss !== -1) {
+    throw new Error("common.miss must remain -1 for forgiveness matching");
+  }
+
+  // Node has no DOM Image; EffectRuntime preloads effect photos in the constructor.
+  if (typeof globalThis.Image === "undefined") {
+    globalThis.Image = class {
+      constructor() {
+        this.src = "";
+        this.decoding = "";
+      }
+    };
+  }
+
+  const { EffectRuntime } = await import(join(root, "js/effects.js"));
+  const noopList = { remove() {}, toggle() {}, add() {} };
+  const rim = { hidden: true, classList: noopList };
+  const countdown = { hidden: true, textContent: "", classList: noopList };
+  const label = { textContent: "", classList: noopList, style: {} };
+  const fx = new EffectRuntime({
+    rimEl: /** @type {any} */ (rim),
+    countdownEl: /** @type {any} */ (countdown),
+    labelEl: /** @type {any} */ (label),
+  });
+  fx.autoSchedule = false;
+  const missHit = { hitCube: false, hitPhoto: false, twinRole: null, sequenceNumber: null };
+  if (fx.resolveClick(missHit) !== -1) {
+    throw new Error("miss without forgiveness armed should stay -1");
+  }
+  fx.armMissForgiveness();
+  if (!fx.isMissForgivenessActive()) {
+    throw new Error("armMissForgiveness should activate the window");
+  }
+  if (fx.resolveClick(missHit) !== 0) {
+    throw new Error("classic miss during forgiveness must score 0");
+  }
+  if (fx.resolveClick({ hitCube: true, hitPhoto: false }) !== 1) {
+    throw new Error("cube hits must still score during forgiveness");
+  }
+  fx._forgivenessUntil = performance.now() - 1;
+  if (fx.resolveClick(missHit) !== -1) {
+    throw new Error("after forgiveness window, miss must return to -1");
   }
 }
 
@@ -175,6 +236,7 @@ async function main() {
   assertHtml();
   assertI18n();
   assertEffectsGate();
+  await assertMissForgiveness();
   await assertLeaderboardHygiene();
   await serveAndFetch();
   console.log("Local check passed");
