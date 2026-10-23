@@ -312,6 +312,11 @@ export class EffectRuntime {
     this.beginEffect(pick(pool));
   }
 
+  /** True while a Berserk chain is in progress (including current link). */
+  isBerserkActive() {
+    return this._berserkTotal > 0;
+  }
+
   /** Start a berserk chain of random non-meta effects. */
   _startBerserk() {
     const def = CFG.effects.berserk;

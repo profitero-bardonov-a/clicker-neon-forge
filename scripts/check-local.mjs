@@ -27,6 +27,7 @@ const required = [
   "js/question-gift.js",
   "js/cosmetics.js",
   "js/shop.js",
+  "js/audio.js",
   "js/effects-config.js",
   "js/effects.js",
   "js/float-texts.js",
@@ -76,6 +77,7 @@ function assertHtml() {
     'id="forge-shop"',
     'id="shop-open"',
     'id="shop-list"',
+    'id="sound-toggle"',
     'src="js/main.js"',
   ]) {
     if (!html.includes(needle)) {
@@ -115,11 +117,83 @@ function assertI18n() {
     "effectTipBody_berserk",
     "effectTipName_click_x2",
     "effectTipBody_neon_orb",
+    "soundLabel",
+    "soundOn",
+    "soundOff",
   ]) {
     const count = src.split(key).length - 1;
     if (count < 5) {
       throw new Error(`i18n.js must include ${key} in all 5 locales (found ${count})`);
     }
+  }
+}
+
+async function assertAudio() {
+  const {
+    SOUND_MUTED_KEY,
+    GameAudio,
+    readSoundMuted,
+    writeSoundMuted,
+  } = await import(join(root, "js/audio.js"));
+  if (SOUND_MUTED_KEY !== "neon-forge-sound-muted") {
+    throw new Error("sound mute storage key must stay neon-forge-sound-muted");
+  }
+
+  const store = new Map();
+  const prevLs = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  };
+
+  try {
+    if (readSoundMuted()) throw new Error("default preference must be sound ON (not muted)");
+    writeSoundMuted(true);
+    if (!readSoundMuted()) throw new Error("writeSoundMuted(true) must persist");
+    writeSoundMuted(false);
+    if (readSoundMuted()) throw new Error("writeSoundMuted(false) must clear mute");
+
+    const audio = new GameAudio();
+    if (audio.muted) throw new Error("GameAudio default must be unmuted");
+    audio.setIntensity("idle");
+    if (audio.getTempoScale() !== 1) throw new Error("idle tempo scale must be 1");
+    audio.setIntensity("effect");
+    if (!(audio.getTempoScale() > 1.3)) throw new Error("effect tempo must be noticeably faster");
+    audio.setIntensity("berserk");
+    if (!(audio.getTempoScale() > audio.getFeelScale() && audio.getTempoScale() > 2)) {
+      throw new Error("berserk tempo must be clearly faster than effect/idle");
+    }
+    audio.setMuted(true);
+    if (!audio.muted || store.get(SOUND_MUTED_KEY) !== "1") {
+      throw new Error("setMuted(true) must persist immediately");
+    }
+    audio.setMuted(false);
+    if (audio.muted || store.has(SOUND_MUTED_KEY)) {
+      throw new Error("setMuted(false) must clear persisted mute");
+    }
+  } finally {
+    if (prevLs === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevLs;
+  }
+
+  const mainSrc = readFileSync(join(root, "js/main.js"), "utf8");
+  if (!mainSrc.includes("GameAudio") || !mainSrc.includes("playClick") || !mainSrc.includes("syncFromEffects")) {
+    throw new Error("main.js must wire GameAudio click SFX and intensity sync");
+  }
+  if (!mainSrc.includes("initSoundToggle")) {
+    throw new Error("main.js must wire sound menu toggle");
+  }
+  const fxSrc = readFileSync(join(root, "js/effects.js"), "utf8");
+  if (!fxSrc.includes("isBerserkActive")) {
+    throw new Error("effects.js must expose isBerserkActive for audio boost");
+  }
+  const audioSrc = readFileSync(join(root, "js/audio.js"), "utf8");
+  if (!audioSrc.includes("CC0") && !audioSrc.includes("public domain")) {
+    throw new Error("audio.js must document procedural license");
+  }
+  if (!audioSrc.includes("AudioContext")) {
+    throw new Error("audio must use Web Audio (no paid SaaS)");
   }
 }
 
@@ -1021,6 +1095,7 @@ async function main() {
   await assertLeaderboardHygiene();
   await assertQuestionGift();
   await assertEffectTips();
+  await assertAudio();
   await serveAndFetch();
   console.log("Local check passed");
 }
