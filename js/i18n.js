@@ -96,6 +96,7 @@ const MESSAGES = {
     effectsTipBody:
       "Timed buffs and traps will pop up — multipliers, combos, lottery twins, and drains. Hit the glowing targets; empty taps can cost clicks.",
     effectsTipGotIt: "Got it",
+    milestoneToast: "Forged {n} clicks",
   },
   ru: {
     title: "Neon Forge — бесплатный онлайн-кликер",
@@ -179,6 +180,7 @@ const MESSAGES = {
     effectsTipBody:
       "Появятся усиления и ловушки — множители, комбо, лотерея и слив очков. Бей по подсвеченным целям; промахи могут отнимать клики.",
     effectsTipGotIt: "Понятно",
+    milestoneToast: "Выковано {n} кликов",
   },
   es: {
     title: "Neon Forge — clicker gratis en el navegador",
@@ -262,6 +264,7 @@ const MESSAGES = {
     effectsTipBody:
       "Aparecerán bonus y trampas — multiplicadores, combos, lotería y drenajes. Golpea los objetivos brillantes; los fallos pueden restar clics.",
     effectsTipGotIt: "Entendido",
+    milestoneToast: "Forjados {n} clics",
   },
   de: {
     title: "Neon Forge — kostenloser Browser-Clicker",
@@ -345,6 +348,7 @@ const MESSAGES = {
     effectsTipBody:
       "Bald starten Buffs und Fallen — Multiplikatoren, Combos, Lotterie und Abzüge. Triff die leuchtenden Ziele; Fehlklicks können Punkte kosten.",
     effectsTipGotIt: "Verstanden",
+    milestoneToast: "{n} Klicks geschmiedet",
   },
   fr: {
     title: "Neon Forge — clicker gratuit dans le navigateur",
@@ -428,6 +432,7 @@ const MESSAGES = {
     effectsTipBody:
       "Des bonus et pièges vont apparaître — multiplicateurs, combos, loterie et drains. Visez les cibles lumineuses ; les ratés peuvent coûter des clics.",
     effectsTipGotIt: "Compris",
+    milestoneToast: "{n} clics forgés",
   },
 };
 

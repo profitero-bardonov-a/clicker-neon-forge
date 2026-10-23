@@ -22,6 +22,7 @@ const required = [
   "js/score-store.js",
   "js/analytics.js",
   "js/onboarding-tip.js",
+  "js/milestones.js",
   "js/effects-config.js",
   "js/effects.js",
   "js/float-texts.js",
@@ -65,6 +66,7 @@ function assertHtml() {
     'id="effect-rim"',
     'id="tap-hint"',
     'id="effects-tip"',
+    'id="milestone-toast"',
     'src="js/main.js"',
   ]) {
     if (!html.includes(needle)) {
@@ -84,9 +86,9 @@ function assertI18n() {
   if (!src.includes("tapHint")) {
     throw new Error("i18n.js must include tapHint for first-session coach mark");
   }
-  for (const key of ["effectsTipTitle", "effectsTipBody", "effectsTipGotIt"]) {
+  for (const key of ["effectsTipTitle", "effectsTipBody", "effectsTipGotIt", "milestoneToast"]) {
     if (!src.includes(key)) {
-      throw new Error(`i18n.js must include ${key} for onboarding tip`);
+      throw new Error(`i18n.js must include ${key} for onboarding tip / milestones`);
     }
   }
 }
@@ -218,6 +220,126 @@ async function assertOnboardingTip() {
   const mainSrc = readFileSync(join(root, "js/main.js"), "utf8");
   if (!mainSrc.includes("initEffectsTip") || !mainSrc.includes("noteCanvasClick")) {
     throw new Error("main.js must wire onboarding tip");
+  }
+}
+
+async function assertMilestones() {
+  const { MILESTONE_THRESHOLDS, MILESTONE_STORAGE_KEY, initMilestones } = await import(
+    join(root, "js/milestones.js")
+  );
+  if (JSON.stringify([...MILESTONE_THRESHOLDS]) !== JSON.stringify([10, 50, 100, 500, 1000])) {
+    throw new Error("MILESTONE_THRESHOLDS must stay 10/50/100/500/1000 unless DECISIONS.md changes");
+  }
+  if (MILESTONE_STORAGE_KEY !== "neon-forge-milestones") {
+    throw new Error("milestone storage key must stay neon-forge-milestones");
+  }
+
+  const store = new Map();
+  const localStorageStub = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+  };
+  const prevLS = globalThis.localStorage;
+  const prevWindow = globalThis.window;
+  globalThis.localStorage = localStorageStub;
+  /** @type {null | (() => void)} */
+  let pendingTimeout = null;
+  globalThis.window = {
+    setTimeout: (fn) => {
+      pendingTimeout = fn;
+      return 1;
+    },
+    clearTimeout() {
+      pendingTimeout = null;
+    },
+  };
+
+  try {
+    /** @type {string[]} */
+    const events = [];
+    /** @type {unknown[]} */
+    const eventParams = [];
+    const prevGtag = /** @type {any} */ (globalThis).gtag;
+    /** @type {any} */ (globalThis).gtag = (cmd, name, params) => {
+      if (cmd === "event") {
+        events.push(String(name));
+        eventParams.push(params);
+      }
+    };
+
+    const textEl = { textContent: "" };
+    const toastRoot = {
+      hidden: true,
+      setAttribute() {},
+      removeAttribute() {},
+      getAttribute: () => "10",
+      addEventListener() {},
+    };
+
+    let tipOpen = false;
+    let celebrated = 0;
+    const milestones = initMilestones({
+      root: /** @type {any} */ (toastRoot),
+      textEl: /** @type {any} */ (textEl),
+      tipIsOpen: () => tipOpen,
+      onCelebrate: () => {
+        celebrated += 1;
+      },
+    });
+    milestones.syncScore(0);
+
+    milestones.noteScore(9);
+    if (!toastRoot.hidden || celebrated) throw new Error("milestone must not fire before 10");
+
+    // Tip not seen yet → threshold 10 waits.
+    tipOpen = false;
+    milestones.noteScore(10);
+    if (!toastRoot.hidden) throw new Error("milestone 10 must wait until effects tip is seen");
+    if (events.includes("milestone_reached")) {
+      throw new Error("milestone_reached must not fire while tip unseen");
+    }
+
+    localStorageStub.setItem("neon-forge-effects-tip-seen", "1");
+    milestones.onTipClosed();
+    if (toastRoot.hidden) throw new Error("milestone 10 must show after tip seen");
+    if (!events.includes("milestone_reached")) throw new Error("missing milestone_reached");
+    const reached = eventParams.find((_, i) => events[i] === "milestone_reached");
+    if (!reached || /** @type {any} */ (reached).value !== 10) {
+      throw new Error("milestone_reached must pass value=10");
+    }
+    if (celebrated < 1) throw new Error("milestone toast should celebrate with particles hook");
+
+    const raw = localStorageStub.getItem("neon-forge-milestones");
+    if (!raw || !raw.includes("10")) throw new Error("claimed set must persist threshold 10");
+
+    // Refresh simulation: syncScore at 10 must not re-toast.
+    events.length = 0;
+    pendingTimeout = null;
+    const again = initMilestones({
+      root: /** @type {any} */ (toastRoot),
+      textEl: /** @type {any} */ (textEl),
+    });
+    again.syncScore(10);
+    again.noteScore(11);
+    if (events.includes("milestone_reached")) {
+      throw new Error("claimed milestones must not re-fire on refresh");
+    }
+
+    // Higher thresholds still work.
+    again.noteScore(50);
+    if (!events.includes("milestone_reached")) throw new Error("milestone 50 must fire when unclaimed");
+
+    /** @type {any} */ (globalThis).gtag = prevGtag;
+  } finally {
+    if (prevLS === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevLS;
+    if (prevWindow === undefined) delete globalThis.window;
+    else globalThis.window = prevWindow;
+  }
+
+  const mainSrc = readFileSync(join(root, "js/main.js"), "utf8");
+  if (!mainSrc.includes("initMilestones") || !mainSrc.includes("noteScore")) {
+    throw new Error("main.js must wire milestones");
   }
 }
 
@@ -353,6 +475,7 @@ async function main() {
   assertI18n();
   assertEffectsGate();
   await assertOnboardingTip();
+  await assertMilestones();
   await assertMissForgiveness();
   await assertLeaderboardHygiene();
   await serveAndFetch();

@@ -13,6 +13,7 @@ import { isDemoMode, startDemoReel } from "./demo-reel.js";
 import { initPwa } from "./pwa.js";
 import { trackEvent } from "./analytics.js";
 import { initEffectsTip } from "./onboarding-tip.js";
+import { initMilestones } from "./milestones.js";
 
 const TAP_HINT_KEY = "neon-forge-tap-hint-seen";
 let firstClickTracked = false;
@@ -224,8 +225,20 @@ const effectsTip = initEffectsTip({
       tipPauseAnchor = 0;
     }
     tipFrozen = false;
+    milestones.onTipClosed();
   },
 });
+
+const milestones = initMilestones({
+  root: /** @type {HTMLElement} */ (document.getElementById("milestone-toast")),
+  textEl: /** @type {HTMLElement} */ (document.getElementById("milestone-toast-text")),
+  enabled: !isDemoMode(),
+  tipIsOpen: () => effectsTip.isOpen(),
+  onCelebrate: () => {
+    particles.burst(baseCx || width * 0.5, baseCy || height * 0.48, { intense: true });
+  },
+});
+milestones.syncScore(scores.score);
 
 // Returning players already know the loop — resume chaos immediately.
 if (!newPlayerSession) {
@@ -285,6 +298,7 @@ const auth = await initAuth({
     if (user) {
       await scores.attachUser(user);
       counter.setScore(scores.score, { animate: false });
+      milestones.syncScore(scores.score);
       void leaderboard.refresh();
     } else {
       scores.detachUser();
@@ -395,6 +409,7 @@ function applyDelta(delta, x, y, meta = {}) {
     hitCube: meta.hitCube ?? delta > 0,
     animate: true,
   });
+  milestones.noteScore(scores.score);
   if (meta.fromCounter) {
     floats.spawnFromCounter(counterRoot, delta);
   } else {

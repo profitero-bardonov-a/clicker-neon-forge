@@ -1282,6 +1282,55 @@ body.is-demo #dev-fx {
   background: linear-gradient(135deg, var(--cyan), #7af0ff);
 }
 
+.milestone-toast {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  z-index: 18;
+  transform: translateX(-50%);
+  max-inline-size: min(calc(100% - 2rem), 20rem);
+  margin: 0;
+  padding: 0.65rem 1.05rem;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(61, 231, 255, 0.32);
+  background: linear-gradient(180deg, rgba(20, 30, 42, 0.94), rgba(10, 16, 24, 0.94));
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  animation: milestone-toast-in 0.35s ease-out;
+}
+
+.milestone-toast[hidden] {
+  display: none !important;
+}
+
+.milestone-toast__text {
+  margin: 0;
+  font-family: "Syne", sans-serif;
+  font-size: clamp(0.92rem, 3.2vw, 1.1rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--cyan);
+}
+
+@keyframes milestone-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .milestone-toast {
+    animation: none;
+  }
+}
+
 .tap-hint {
   position: fixed;
   left: 50%;
