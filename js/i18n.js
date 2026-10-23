@@ -44,7 +44,7 @@ const MESSAGES = {
     aboutFeat8: "5 languages built in",
     aboutEffectsTitle: "Effects",
     aboutEffects:
-      "Effects shake up every run: click multipliers, rising combos, numbered cubes in order, twin lottery with huge swings, flying photos, shrinking wander cubes, inverted clicks, and photo shields. Master the chaos to climb Neon Forge.",
+      "Effects shake up every run: click multipliers, overcharge ramps, neon orbs, rising combos, numbered cubes, twin lottery, flying photos, shrinking wander cubes, quakes, inverted clicks, and photo shields. Master the chaos to climb Neon Forge.",
     aboutWhyTitle: "Why play",
     aboutWhy:
       "Looking for a free browser clicker with real competition? Neon Forge keeps sessions short, tense, and shareable — perfect for a quick high-score chase or a longer grind against the leaderboard.",
@@ -91,6 +91,9 @@ const MESSAGES = {
     effectSplitLottery: "LOTTERY",
     effectRisingCombo: "COMBO +{x}",
     effectNumberOrder: "NEXT {x}",
+    effectOvercharge: "OVERCHARGE ×{x}",
+    effectNeonOrb: "NEON ORB +{x}",
+    effectQuake: "QUAKE",
     tapHint: "Tap the cube",
     effectsTipTitle: "Effects are coming",
     effectsTipBody:
@@ -127,7 +130,7 @@ const MESSAGES = {
     aboutFeat8: "5 языков",
     aboutEffectsTitle: "Эффекты",
     aboutEffects:
-      "Эффекты меняют каждый забег: множители кликов, растущее комбо, кубы по порядку, лотерея с большими качелями, летающие фото, мелкий куб, инверсия кликов и фото-щит. Освой хаос и поднимайся в Neon Forge.",
+      "Эффекты меняют каждый забег: множители, перегрузка, неоновый шар, растущее комбо, кубы по порядку, лотерея, летающие фото, мелкий куб, тряска, инверсия кликов и фото-щит. Освой хаос и поднимайся в Neon Forge.",
     aboutWhyTitle: "Зачем играть",
     aboutWhy:
       "Ищешь бесплатный браузерный кликер с настоящей конкуренцией? Neon Forge — короткие напряжённые сессии и погоня за рекордом в таблице лидеров.",
@@ -174,6 +177,9 @@ const MESSAGES = {
     effectSplitLottery: "ЛОТЕРЕЯ",
     effectRisingCombo: "КОМБО +{x}",
     effectNumberOrder: "ДАЛЬШЕ {x}",
+    effectOvercharge: "ПЕРЕГРУЗКА ×{x}",
+    effectNeonOrb: "НЕОН-ШАР +{x}",
+    effectQuake: "ТРЯСКА",
     tapHint: "Жми на куб",
     effectsTipTitle: "Скоро эффекты",
     effectsTipBody:
@@ -210,7 +216,7 @@ const MESSAGES = {
     aboutFeat8: "5 idiomas incluidos",
     aboutEffectsTitle: "Efectos",
     aboutEffects:
-      "Los efectos cambian cada partida: multiplicadores, combos, cubos en orden, lotería gemela con grandes altibajos, fotos voladoras, cubo pequeño, clics invertidos y escudos de foto. Domina el caos y escala en Neon Forge.",
+      "Los efectos cambian cada partida: multiplicadores, sobrecarga, orbe neón, combos, cubos en orden, lotería gemela, fotos voladoras, cubo pequeño, temblor, clics invertidos y escudos de foto. Domina el caos y escala en Neon Forge.",
     aboutWhyTitle: "Por qué jugar",
     aboutWhy:
       "¿Buscas un clicker gratis en el navegador con competencia real? Neon Forge ofrece sesiones cortas, tensas y fáciles de compartir — ideal para un récord rápido o una carrera larga en la clasificación.",
@@ -257,6 +263,9 @@ const MESSAGES = {
     effectSplitLottery: "LOTERÍA",
     effectRisingCombo: "COMBO +{x}",
     effectNumberOrder: "SIGUE {x}",
+    effectOvercharge: "SOBRECARGA ×{x}",
+    effectNeonOrb: "ORBE NEÓN +{x}",
+    effectQuake: "TEMBLOR",
     tapHint: "Toca el cubo",
     effectsTipTitle: "Llegan los efectos",
     effectsTipBody:
@@ -293,7 +302,7 @@ const MESSAGES = {
     aboutFeat8: "5 Sprachen integriert",
     aboutEffectsTitle: "Effekte",
     aboutEffects:
-      "Effekte würfeln jede Runde um: Klick-Multiplikatoren, steigende Combos, nummerierte Würfel in Reihenfolge, Zwillingslotterie mit großen Ausschlägen, fliegende Fotos, schrumpfender Würfel, invertierte Klicks und Foto-Schilde. Beherrsche das Chaos und steige in Neon Forge auf.",
+      "Effekte würfeln jede Runde um: Multiplikatoren, Überladung, Neon-Orb, Combos, nummerierte Würfel, Zwillingslotterie, fliegende Fotos, schrumpfender Würfel, Beben, invertierte Klicks und Foto-Schilde. Beherrsche das Chaos und steige in Neon Forge auf.",
     aboutWhyTitle: "Warum spielen",
     aboutWhy:
       "Suchst du einen kostenlosen Browser-Clicker mit echter Konkurrenz? Neon Forge hält Sessions kurz, spannend und teilbar — ideal für einen schnellen Highscore oder einen längeren Grind gegen die Bestenliste.",
@@ -340,6 +349,9 @@ const MESSAGES = {
     effectSplitLottery: "LOTTERIE",
     effectRisingCombo: "KOMBO +{x}",
     effectNumberOrder: "NÄCHSTE {x}",
+    effectOvercharge: "ÜBERLADUNG ×{x}",
+    effectNeonOrb: "NEON-ORB +{x}",
+    effectQuake: "BEBEN",
     tapHint: "Würfel tippen",
     effectsTipTitle: "Effekte kommen",
     effectsTipBody:
@@ -376,7 +388,7 @@ const MESSAGES = {
     aboutFeat8: "5 langues intégrées",
     aboutEffectsTitle: "Effets",
     aboutEffects:
-      "Les effets bouleversent chaque partie : multiplicateurs de clics, combos croissants, cubes numérotés dans l’ordre, loterie jumelle à gros écarts, photos volantes, cube réduit, clics inversés et boucliers photo. Maîtrisez le chaos et grimpez dans Neon Forge.",
+      "Les effets bouleversent chaque partie : multiplicateurs, surcharge, orbe néon, combos, cubes numérotés, loterie jumelle, photos volantes, cube réduit, séisme, clics inversés et boucliers photo. Maîtrisez le chaos et grimpez dans Neon Forge.",
     aboutWhyTitle: "Pourquoi jouer",
     aboutWhy:
       "Vous cherchez un clicker gratuit dans le navigateur avec une vraie compétition ? Neon Forge propose des sessions courtes, tendues et partageables — parfait pour un record rapide ou une longue course au classement.",
@@ -423,6 +435,9 @@ const MESSAGES = {
     effectSplitLottery: "LOTERIE",
     effectRisingCombo: "COMBO +{x}",
     effectNumberOrder: "SUIVANT {x}",
+    effectOvercharge: "SURCHARGE ×{x}",
+    effectNeonOrb: "ORBE NÉON +{x}",
+    effectQuake: "SÉISME",
     tapHint: "Touche le cube",
     effectsTipTitle: "Les effets arrivent",
     effectsTipBody:

@@ -114,6 +114,8 @@ export class EffectRuntime {
     this._twinLayouts = null;
     /** Next award for rising_combo; 0 when inactive. */
     this._comboValue = 0;
+    /** Current hit multiplier for overcharge; 0 when inactive. */
+    this._rampValue = 0;
 
     /** @type {{ index: number, number: number, ox: number, oy: number, vx: number, vy: number, alive: boolean }[]} */
     this._sequence = [];
@@ -211,7 +213,7 @@ export class EffectRuntime {
 
   hideChrome() {
     this.rimEl.hidden = true;
-    this.rimEl.classList.remove("is-positive", "is-negative");
+    this.rimEl.classList.remove("is-positive", "is-negative", "is-quake", "is-overcharge");
     this.countdownEl.hidden = true;
     this.countdownEl.textContent = "";
     this.countdownEl.classList.remove("is-positive", "is-negative");
@@ -277,11 +279,14 @@ export class EffectRuntime {
     this._lastPhysicalAt = now;
     this._idleAcc = 0;
     this._comboValue = "startHit" in def ? def.startHit : 0;
+    this._rampValue = "rampStart" in def ? def.rampStart : 0;
     this._initMotion(def);
 
     this.rimEl.hidden = false;
     this.rimEl.classList.toggle("is-positive", polarity === "positive");
     this.rimEl.classList.toggle("is-negative", polarity === "negative");
+    this.rimEl.classList.toggle("is-quake", "jitterAmp" in def);
+    this.rimEl.classList.toggle("is-overcharge", "rampStart" in def);
     this.countdownEl.hidden = false;
     this.countdownEl.classList.toggle("is-positive", polarity === "positive");
     this.countdownEl.classList.toggle("is-negative", polarity === "negative");
@@ -330,6 +335,7 @@ export class EffectRuntime {
     this._photo.x = (typeof window !== "undefined" ? window.innerWidth : 400) * 0.5;
     this._photo.y = (typeof window !== "undefined" ? window.innerHeight : 700) * 0.45;
     this._photo.img = "photo" in def ? this._img(def.photo) : null;
+    if (this._isOrb(def)) this._photo.img = null;
   }
 
   /**
@@ -341,11 +347,15 @@ export class EffectRuntime {
         ? this._sequenceNext
         : "startHit" in def
           ? this._comboValue || def.startHit
-          : "hitMultiplier" in def
-            ? def.hitMultiplier
-            : "photoHit" in def
-              ? def.photoHit
-              : undefined;
+          : "rampStart" in def
+            ? this._rampValue || def.rampStart
+            : "hitMultiplier" in def
+              ? def.hitMultiplier
+              : "orbHit" in def
+                ? def.orbHit
+                : "photoHit" in def
+                  ? def.photoHit
+                  : undefined;
     return t(def.labelKey || "leaders", x == null ? undefined : { x });
   }
 
@@ -360,6 +370,7 @@ export class EffectRuntime {
     this._splitFresh = false;
     this._twinLayouts = null;
     this._comboValue = 0;
+    this._rampValue = 0;
     this._sequence = [];
     this._sequenceNext = 1;
     this._sequenceFresh = false;
@@ -394,19 +405,29 @@ export class EffectRuntime {
     const def = this.active?.def;
     if (!def || !this._isShrink(def)) {
       const field = playField(layout, baseScale);
-      return {
-        cx: clamp(baseCx, field.minX, field.maxX),
-        cy: clamp(baseCy, field.minY, field.maxY),
-        scale: baseScale,
-      };
+      let scale = baseScale;
+      let cx = clamp(baseCx, field.minX, field.maxX);
+      let cy = clamp(baseCy, field.minY, field.maxY);
+      // Subtle breathe on multiplier / overcharge buffs.
+      if (def && ("hitMultiplier" in def || "rampStart" in def)) {
+        const pulse = 1 + 0.06 * Math.sin(performance.now() * 0.008);
+        scale *= pulse;
+      }
+      return { cx, cy, scale };
     }
     const scale = baseScale * def.scaleFactor;
     const field = playField(layout, def.margin + scale);
-    return {
-      cx: clamp(baseCx + this._cubeOffX, field.minX, field.maxX),
-      cy: clamp(baseCy + this._cubeOffY, field.minY, field.maxY),
-      scale,
-    };
+    let cx = clamp(baseCx + this._cubeOffX, field.minX, field.maxX);
+    let cy = clamp(baseCy + this._cubeOffY, field.minY, field.maxY);
+    if ("jitterAmp" in def && def.jitterAmp > 0) {
+      const amp = def.jitterAmp;
+      const t = performance.now() * 0.045;
+      cx += Math.sin(t * 1.7) * amp + (Math.random() - 0.5) * amp * 0.35;
+      cy += Math.cos(t * 2.1) * amp + (Math.random() - 0.5) * amp * 0.35;
+      cx = clamp(cx, field.minX, field.maxX);
+      cy = clamp(cy, field.minY, field.maxY);
+    }
+    return { cx, cy, scale };
   }
 
   /**
@@ -487,10 +508,25 @@ export class EffectRuntime {
   }
 
   /**
+   * Neon collectible orb (no photo asset).
+   * @param {EffectDef | null | undefined} def
+   */
+  _isOrb(def) {
+    return Boolean(def && "orbHit" in def && "sizeFactor" in def);
+  }
+
+  /**
    * @param {EffectDef | null | undefined} def
    */
   _isCover(def) {
     return Boolean(def && "coverOfCube" in def && "photo" in def);
+  }
+
+  /**
+   * @param {EffectDef | null | undefined} def
+   */
+  _isChaseTarget(def) {
+    return this._isFlying(def) || this._isOrb(def) || this._isCover(def);
   }
 
   /**
@@ -547,6 +583,14 @@ export class EffectRuntime {
     }
 
     if (this._isShrink(def) && "scaleFactor" in def && "margin" in def) {
+      if ("accel" in def && def.accel > 0 && "speedMax" in def) {
+        const sp = Math.hypot(this._cubeVx, this._cubeVy) || 1;
+        if (sp < def.speedMax) {
+          const next = Math.min(def.speedMax, sp + def.accel * dt);
+          this._cubeVx = (this._cubeVx / sp) * next;
+          this._cubeVy = (this._cubeVy / sp) * next;
+        }
+      }
       this._cubeOffX += this._cubeVx * dt;
       this._cubeOffY += this._cubeVy * dt;
       const scale = layout.baseScale * def.scaleFactor;
@@ -559,7 +603,7 @@ export class EffectRuntime {
       this._cubeOffY = clamp(y, field.minY, field.maxY) - layout.baseCy;
     }
 
-    if (this._isFlying(def) || this._isCover(def)) {
+    if (this._isChaseTarget(def)) {
       this._updatePhoto(dt, layout);
     }
 
@@ -589,9 +633,9 @@ export class EffectRuntime {
   _syncLabelPosition() {
     if (!this.active) return;
     const def = this.active.def;
-    const onPhoto = "photo" in def;
-    this.labelEl.classList.toggle("is-on-photo", onPhoto);
-    if (!onPhoto) {
+    const onTarget = "photo" in def || this._isOrb(def);
+    this.labelEl.classList.toggle("is-on-photo", onTarget);
+    if (!onTarget) {
       this.labelEl.style.left = "";
       this.labelEl.style.top = "";
       return;
@@ -618,15 +662,23 @@ export class EffectRuntime {
       return;
     }
 
-    if (!this._isFlying(def) || !("sizeFactor" in def) || !("speedMax" in def)) return;
+    if (
+      (!this._isFlying(def) && !this._isOrb(def)) ||
+      !("sizeFactor" in def) ||
+      !("speedMax" in def)
+    ) {
+      return;
+    }
 
     this._photo.r = layout.baseScale * def.sizeFactor * 0.5;
     this._photo.x += this._photo.vx * dt;
     this._photo.y += this._photo.vy * dt;
-    const tx = cube.cx + Math.sin(performance.now() * 0.003) * layout.baseScale * 1.2;
-    const ty = cube.cy + Math.cos(performance.now() * 0.0024) * layout.baseScale * 1.1;
-    this._photo.vx += (tx - this._photo.x) * 1.8 * dt;
-    this._photo.vy += (ty - this._photo.y) * 1.8 * dt;
+    const chase = this._isOrb(def) ? 2.4 : 1.8;
+    const wobble = this._isOrb(def) ? 1.55 : 1.2;
+    const tx = cube.cx + Math.sin(performance.now() * 0.003) * layout.baseScale * wobble;
+    const ty = cube.cy + Math.cos(performance.now() * 0.0024) * layout.baseScale * (wobble * 0.9);
+    this._photo.vx += (tx - this._photo.x) * chase * dt;
+    this._photo.vy += (ty - this._photo.y) * chase * dt;
     const sp = Math.hypot(this._photo.vx, this._photo.vy) || 1;
     const maxSp = def.speedMax;
     if (sp > maxSp) {
@@ -638,7 +690,7 @@ export class EffectRuntime {
     if (this._photo.y < field.minY || this._photo.y > field.maxY) this._photo.vy *= -1;
     this._photo.x = clamp(this._photo.x, field.minX, field.maxX);
     this._photo.y = clamp(this._photo.y, field.minY, field.maxY);
-    this._photo.img = "photo" in def ? this._img(def.photo) : null;
+    this._photo.img = this._isOrb(def) ? null : "photo" in def ? this._img(def.photo) : null;
   }
 
   /**
@@ -799,16 +851,16 @@ export class EffectRuntime {
    */
   hitTestPhoto(x, y) {
     const def = this.active?.def;
-    if (!def || (!this._isFlying(def) && !this._isCover(def))) return false;
+    if (!def || !this._isChaseTarget(def)) return false;
     const dx = x - this._photo.x;
     const dy = y - this._photo.y;
     return dx * dx + dy * dy <= this._photo.r * this._photo.r;
   }
 
-  /** Screen center of the active photo effect, if any. */
+  /** Screen center of the active photo/orb effect, if any. */
   getPhotoPoint() {
     const def = this.active?.def;
-    if (!def || (!this._isFlying(def) && !this._isCover(def))) return null;
+    if (!def || !this._isChaseTarget(def)) return null;
     return { x: this._photo.x, y: this._photo.y };
   }
 
@@ -1010,6 +1062,10 @@ export class EffectRuntime {
       return delta;
     }
 
+    if (hit.hitPhoto && def && "orbHit" in def) {
+      return def.orbHit;
+    }
+
     if (hit.hitPhoto && def && "photoHit" in def) {
       return def.photoHit;
     }
@@ -1027,6 +1083,19 @@ export class EffectRuntime {
       return "miss" in def ? def.miss : common.miss;
     }
 
+    if (def && "rampStart" in def && "rampStep" in def) {
+      if (hit.hitCube) {
+        const mult = this._rampValue || def.rampStart;
+        const cap = "rampMax" in def ? def.rampMax : Number.POSITIVE_INFINITY;
+        this._rampValue = Math.min(cap, mult + def.rampStep);
+        this.refreshLabel();
+        return common.hit * mult;
+      }
+      this._rampValue = def.rampStart;
+      this.refreshLabel();
+      return common.miss;
+    }
+
     if (def && "hit" in def && "miss" in def && !("hitMultiplier" in def) && !("photo" in def)) {
       // invert_clicks style
       return hit.hitCube ? def.hit : def.miss;
@@ -1040,6 +1109,10 @@ export class EffectRuntime {
     if (hit.hitCube) {
       const mult = def && "hitMultiplier" in def ? def.hitMultiplier : 1;
       return common.hit * mult;
+    }
+
+    if (def && this._isShrink(def) && "miss" in def) {
+      return def.miss;
     }
 
     return common.miss;
@@ -1099,10 +1172,39 @@ export class EffectRuntime {
    */
   draw(ctx) {
     const def = this.active?.def;
-    if (!def || (!this._isFlying(def) && !this._isCover(def))) return;
+    if (!def || !this._isChaseTarget(def)) return;
 
     const img = this._photo.img;
     const { x, y, r } = this._photo;
+    const positive = this.active?.polarity === "positive";
+
+    if (this._isOrb(def)) {
+      const pulse = 0.85 + 0.15 * Math.sin(performance.now() * 0.01);
+      ctx.save();
+      const glow = ctx.createRadialGradient(x, y, r * 0.1, x, y, r * 1.35);
+      glow.addColorStop(0, `rgba(180, 255, 255, ${0.55 * pulse})`);
+      glow.addColorStop(0.45, `rgba(61, 231, 255, ${0.35 * pulse})`);
+      glow.addColorStop(1, "rgba(61, 231, 255, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(230, 255, 255, ${0.75 * pulse})`;
+      ctx.shadowColor = "rgba(61, 231, 255, 0.9)";
+      ctx.shadowBlur = 18;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(120, 255, 255, 0.95)";
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 14;
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
     ctx.save();
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -1120,7 +1222,6 @@ export class EffectRuntime {
     ctx.save();
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
-    const positive = this.active?.polarity === "positive";
     ctx.strokeStyle = positive ? "rgba(80, 255, 140, 0.85)" : "rgba(255, 90, 100, 0.85)";
     ctx.lineWidth = 3;
     ctx.shadowColor = positive ? "rgba(80, 255, 140, 0.55)" : "rgba(255, 90, 100, 0.55)";

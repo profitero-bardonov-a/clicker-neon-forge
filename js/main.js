@@ -248,6 +248,9 @@ if (isLocalDevHost()) {
     ["dev-fx-lottery", "split_lottery"],
     ["dev-fx-combo", "rising_combo"],
     ["dev-fx-order", "number_order"],
+    ["dev-fx-overcharge", "overcharge"],
+    ["dev-fx-orb", "neon_orb"],
+    ["dev-fx-quake", "quake"],
   ];
   for (const [btnId, effectId] of localFxButtons) {
     const btn = /** @type {HTMLButtonElement} */ (document.getElementById(btnId));
