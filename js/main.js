@@ -14,6 +14,7 @@ import { initPwa } from "./pwa.js";
 import { trackEvent } from "./analytics.js";
 import { initEffectsTip } from "./onboarding-tip.js";
 import { initMilestones } from "./milestones.js";
+import { initShop } from "./shop.js";
 
 const TAP_HINT_KEY = "neon-forge-tap-hint-seen";
 let firstClickTracked = false;
@@ -56,6 +57,11 @@ aboutCloseBtn.addEventListener("click", closeAbout);
 document.getElementById("about-backdrop")?.addEventListener("click", closeAbout);
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !aboutRoot.hidden) closeAbout();
+});
+
+const shopOpenBtn = /** @type {HTMLButtonElement} */ (document.getElementById("shop-open"));
+shopOpenBtn.addEventListener("click", () => {
+  menu.close();
 });
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("stage"));
@@ -239,6 +245,25 @@ const milestones = initMilestones({
   },
 });
 milestones.syncScore(scores.score);
+
+const shop = initShop({
+  root: /** @type {HTMLElement} */ (document.getElementById("forge-shop")),
+  listEl: /** @type {HTMLElement} */ (document.getElementById("shop-list")),
+  closeBtn: /** @type {HTMLButtonElement} */ (document.getElementById("shop-close")),
+  backdrop: /** @type {HTMLElement} */ (document.getElementById("shop-backdrop")),
+  toastRoot: /** @type {HTMLElement} */ (document.getElementById("shop-toast")),
+  toastText: /** @type {HTMLElement} */ (document.getElementById("shop-toast-text")),
+  openBtn: shopOpenBtn,
+  scores,
+  cubes: [cube, ...twinMesh, ...sequenceMesh],
+  particles,
+  enabled: !isDemoMode(),
+  readOnly: isDemoMode(),
+  onScoreChange: () => {
+    counter.setScore(scores.score, { animate: true });
+    milestones.noteScore(scores.score);
+  },
+});
 
 // Returning players already know the loop — resume chaos immediately.
 if (!newPlayerSession) {
@@ -427,6 +452,10 @@ function onPointerDown(e) {
   if (e.button !== 0) return;
   if (document.body.classList.contains("is-about-open")) return;
   if (document.body.classList.contains("is-tip-open")) return;
+  if (document.body.classList.contains("is-shop-open")) {
+    shop.close();
+    return;
+  }
   if (document.body.classList.contains("is-menu-open")) {
     menu.close();
     return;

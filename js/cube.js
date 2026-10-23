@@ -90,6 +90,11 @@ export class Cube {
     /** @type {{ local: {x:number,y:number,z:number}, life: number, maxLife: number } | null} */
     this.hitMarker = null;
 
+    /** Cosmetic rim tint (Forge Shop). */
+    this.rimStroke = "rgba(200, 232, 245, 0.85)";
+    this.rimGlow = "rgba(61, 231, 255, 0.45)";
+    this.rimVertex = "rgba(61, 231, 255, 0.9)";
+
     this._world = LOCAL.map(() => vec3());
     this._projected = LOCAL.map(() => ({ x: 0, y: 0, z: 0 }));
     this._faceCache = [];
@@ -207,8 +212,8 @@ export class Cube {
     if (opts.faceMark) this._drawFaceMarks(ctx, opts.faceMark);
 
     ctx.lineWidth = 1.6;
-    ctx.strokeStyle = "rgba(200, 232, 245, 0.85)";
-    ctx.shadowColor = "rgba(61, 231, 255, 0.45)";
+    ctx.strokeStyle = this.rimStroke;
+    ctx.shadowColor = this.rimGlow;
     ctx.shadowBlur = 8;
     ctx.beginPath();
     for (const [a, b] of EDGES) {
@@ -220,7 +225,7 @@ export class Cube {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    ctx.fillStyle = "rgba(61, 231, 255, 0.9)";
+    ctx.fillStyle = this.rimVertex;
     for (const p of this._projected) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);

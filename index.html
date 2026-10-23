@@ -289,6 +289,12 @@
         <div class="menu__langs" id="locale-list" role="listbox" aria-label="Language"></div>
       </section>
 
+      <section class="menu__section" id="menu-shop-section">
+        <button type="button" class="menu__action" id="shop-open" data-i18n="shopOpen">
+          Forge Shop
+        </button>
+      </section>
+
       <section class="menu__section">
         <button type="button" class="menu__action" id="about-open" data-i18n="aboutOpen">
           About the game
@@ -330,6 +336,26 @@
 
   <div class="milestone-toast" id="milestone-toast" hidden role="status" aria-live="polite">
     <p class="milestone-toast__text" id="milestone-toast-text">Forged 100 clicks</p>
+  </div>
+
+  <div class="shop-toast" id="shop-toast" hidden role="status" aria-live="polite">
+    <p class="shop-toast__text" id="shop-toast-text"></p>
+  </div>
+
+  <div class="shop" id="forge-shop" hidden>
+    <button type="button" class="shop__backdrop" id="shop-backdrop" tabindex="-1" aria-hidden="true"></button>
+    <div class="shop__panel" role="dialog" aria-modal="true" aria-labelledby="shop-title">
+      <div class="shop__head">
+        <h2 class="shop__title" id="shop-title" data-i18n="shopTitle">Forge Shop</h2>
+        <button type="button" class="shop__close" id="shop-close" data-i18n-aria="shopClose" aria-label="Close">
+          ×
+        </button>
+      </div>
+      <p class="shop__blurb" data-i18n="shopBlurb">
+        Spend clicks on looks for this device. Cosmetics are visual only — they never boost your score.
+      </p>
+      <div class="shop__list" id="shop-list"></div>
+    </div>
   </div>
 
   <div class="modal" id="logout-modal" hidden>

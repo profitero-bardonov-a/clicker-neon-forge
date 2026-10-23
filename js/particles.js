@@ -35,11 +35,22 @@ function createParticle() {
 
 const CYANS = ["#3de7ff", "#7af0ff", "#1a8fa0", "#c8e8f5"];
 const AMBERS = ["#ffb347", "#ff7a1a", "#ffd28a", "#ff9f4a"];
+const EMBERS = ["#ff5a1a", "#ff3d00", "#ffb347", "#ff7a1a", "#ffd28a"];
 
 export class ParticleSystem {
   constructor() {
     /** @type {Particle[]} */
     this.pool = Array.from({ length: POOL_SIZE }, createParticle);
+    /** @type {"default" | "ember"} */
+    this.palette = "default";
+  }
+
+  /**
+   * Cosmetics spark set — visual only.
+   * @param {"default" | "ember"} id
+   */
+  setPalette(id) {
+    this.palette = id === "ember" ? "ember" : "default";
   }
 
   /** @returns {Particle | null} */
@@ -67,13 +78,16 @@ export class ParticleSystem {
       const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.4;
       const mag = speed * (0.35 + Math.random() * 0.75);
       const isSpark = Math.random() > 0.55;
-      const palette = intense
-        ? Math.random() > 0.4
-          ? AMBERS
-          : CYANS
-        : Math.random() > 0.65
-          ? AMBERS
-          : CYANS;
+      const ember = this.palette === "ember";
+      const palette = ember
+        ? EMBERS
+        : intense
+          ? Math.random() > 0.4
+            ? AMBERS
+            : CYANS
+          : Math.random() > 0.65
+            ? AMBERS
+            : CYANS;
 
       p.alive = true;
       p.x = x;
@@ -103,7 +117,8 @@ export class ParticleSystem {
       ring.rotation = 0;
       ring.spin = 0;
       ring.kind = "ring";
-      ring.color = intense ? "#ffb347" : "#3de7ff";
+      const ember = this.palette === "ember";
+      ring.color = ember ? "#ff5a1a" : intense ? "#ffb347" : "#3de7ff";
     }
   }
 
