@@ -71,7 +71,8 @@ function unfreezeMenu() {
     menuPauseAnchor = 0;
   }
   menuFrozen = false;
-  audio.setBedPaused(false);
+  // Keep bed paused if the leaderboard still holds gameplay pause.
+  audio.setBedPaused(paused);
 }
 
 const menu = initMenu({
@@ -154,6 +155,8 @@ function syncPauseLabel() {
 }
 
 /**
+ * Leaderboard expand pause — same freeze as the pause glyph path, plus bed
+ * pause like the burger menu (effects/schedule already gated by `paused`).
  * @param {boolean} next
  */
 function setPaused(next) {
@@ -174,6 +177,7 @@ function setPaused(next) {
   pauseMark.hidden = !paused;
   pauseMark.setAttribute("aria-hidden", paused ? "false" : "true");
   if (paused) syncPauseLabel();
+  audio.setBedPaused(paused || menuFrozen);
 }
 
 const leaderboard = new Leaderboard({
@@ -182,6 +186,7 @@ const leaderboard = new Leaderboard({
   statusEl: /** @type {HTMLElement} */ (document.getElementById("leaderboard-status")),
   countEl: /** @type {HTMLElement | null} */ (document.getElementById("leaderboard-count")),
   toggleBtn: /** @type {HTMLButtonElement} */ (document.getElementById("leaderboard-toggle")),
+  bodyEl: /** @type {HTMLElement | null} */ (document.getElementById("leaderboard-body")),
   onExpanded: setPaused,
 });
 leaderboard.start();
@@ -568,7 +573,12 @@ function onPointerDown(e) {
     menu.close();
     return;
   }
-  if (paused) return;
+  // Leaderboard pause: free space / stage click-away closes + resumes (modal pattern).
+  // List/chrome clicks stopPropagation on the LB root and never reach the stage.
+  if (paused) {
+    leaderboard.setExpanded(false);
+    return;
+  }
   e.preventDefault();
 
   void audio.unlock();

@@ -877,6 +877,17 @@ async function assertLeaderboardHygiene() {
   if (!client.includes("leadersCountLabel")) {
     throw new Error("leaderboard count must use leadersCountLabel for a11y");
   }
+  if (!client.includes("_resetScroll") || !client.includes("scrollTop = 0")) {
+    throw new Error("leaderboard close must reset list scrollTop to 0");
+  }
+
+  const mainSrc = readFileSync(join(root, "js/main.js"), "utf8");
+  if (!mainSrc.includes("leaderboard.setExpanded(false)") || !mainSrc.includes("if (paused)")) {
+    throw new Error("main.js must close leaderboard on stage click while paused");
+  }
+  if (!mainSrc.includes("setBedPaused(paused || menuFrozen)")) {
+    throw new Error("leaderboard pause must pause music bed like menu freeze");
+  }
 }
 
 async function assertQuestionGift() {

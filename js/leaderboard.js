@@ -18,6 +18,7 @@ export class Leaderboard {
    *   statusEl: HTMLElement,
    *   countEl?: HTMLElement | null,
    *   toggleBtn: HTMLButtonElement,
+   *   bodyEl?: HTMLElement | null,
    *   onExpanded?: (expanded: boolean) => void,
    * }} ui
    */
@@ -27,6 +28,9 @@ export class Leaderboard {
     this.statusEl = ui.statusEl;
     this.countEl = ui.countEl || null;
     this.toggleBtn = ui.toggleBtn;
+    this.bodyEl =
+      ui.bodyEl ||
+      /** @type {HTMLElement | null} */ (this.root.querySelector(".leaderboard__body"));
     this.onExpanded = ui.onExpanded || null;
     this._timer = 0;
     this._expanded = false;
@@ -43,6 +47,11 @@ export class Leaderboard {
       e.stopPropagation();
       this._spawnBlast(e.clientX, e.clientY);
       this.setExpanded(!this._expanded);
+    });
+
+    // Keep list / chrome clicks from bubbling to stage "click-away" handlers.
+    this.root.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
     });
 
     onLocaleChange(() => {
@@ -79,8 +88,14 @@ export class Leaderboard {
     if (this._expanded === expanded) return;
     this._expanded = expanded;
     this._syncExpandedDom();
+    if (!expanded) this._resetScroll();
     this.onExpanded?.(expanded);
     if (expanded) trackEvent("leaderboard_expand");
+  }
+
+  /** Scroll the expandable list container back to the top on every close path. */
+  _resetScroll() {
+    if (this.bodyEl) this.bodyEl.scrollTop = 0;
   }
 
   /**
