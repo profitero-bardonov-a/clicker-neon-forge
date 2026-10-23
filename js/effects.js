@@ -49,7 +49,19 @@ function pick(list) {
 /** @returns {string[]} */
 function effectIdsByPolarity(polarity) {
   return Object.entries(CFG.effects)
-    .filter(([, def]) => def.enabled !== false && def.polarity === polarity)
+    .filter(
+      ([, def]) =>
+        def.enabled !== false &&
+        !("meta" in def && def.meta) &&
+        def.polarity === polarity
+    )
+    .map(([id]) => id);
+}
+
+/** Non-meta enabled effect ids (for berserk links + weighted schedule). */
+function playableEffectIds() {
+  return Object.entries(CFG.effects)
+    .filter(([, def]) => def.enabled !== false && !("meta" in def && def.meta))
     .map(([id]) => id);
 }
 
@@ -73,12 +85,14 @@ export class EffectRuntime {
    *   rimEl: HTMLElement,
    *   countdownEl: HTMLElement,
    *   labelEl: HTMLElement,
+   *   onEffectStart?: (id: string) => void,
    * }} ui
    */
   constructor(ui) {
     this.rimEl = ui.rimEl;
     this.countdownEl = ui.countdownEl;
     this.labelEl = ui.labelEl;
+    this.onEffectStart = ui.onEffectStart || null;
 
     /** @type {ActiveEffect | null} */
     this.active = null;
@@ -91,6 +105,10 @@ export class EffectRuntime {
     /** performance.now() deadline for classic −1 miss forgiveness; 0 = off */
     this._forgivenessUntil = 0;
     this._forgivenessArmed = false;
+    /** Remaining berserk link effects after the current one (0 = idle). */
+    this._berserkLeft = 0;
+    /** Total links in the active berserk chain (for HUD). */
+    this._berserkTotal = 0;
 
     this._cubeOffX = 0;
     this._cubeOffY = 0;
@@ -173,6 +191,8 @@ export class EffectRuntime {
 
   stop() {
     this._nextAt = 0;
+    this._berserkLeft = 0;
+    this._berserkTotal = 0;
     this.endEffect({ reschedule: false });
   }
 
@@ -213,7 +233,13 @@ export class EffectRuntime {
 
   hideChrome() {
     this.rimEl.hidden = true;
-    this.rimEl.classList.remove("is-positive", "is-negative", "is-quake", "is-overcharge");
+    this.rimEl.classList.remove(
+      "is-positive",
+      "is-negative",
+      "is-quake",
+      "is-overcharge",
+      "is-berserk"
+    );
     this.countdownEl.hidden = true;
     this.countdownEl.textContent = "";
     this.countdownEl.classList.remove("is-positive", "is-negative");
@@ -233,11 +259,17 @@ export class EffectRuntime {
     if (this.active) this.endEffect({ reschedule: false });
     const polarity = Math.random() < 0.5 ? "positive" : "negative";
     let pool = effectIdsByPolarity(polarity);
-    if (!pool.length) {
-      // fallback to any enabled effect
-      pool = Object.entries(CFG.effects)
-        .filter(([, def]) => def.enabled !== false)
-        .map(([id]) => id);
+    if (!pool.length) pool = playableEffectIds();
+    // Rare meta: berserk may replace a normal draw.
+    const berserkDef = CFG.effects.berserk;
+    if (berserkDef && berserkDef.enabled !== false && "meta" in berserkDef && berserkDef.meta) {
+      const weight =
+        "scheduleWeight" in berserkDef ? Number(berserkDef.scheduleWeight) || 0 : 0;
+      const normalWeight = pool.length;
+      if (weight > 0 && Math.random() * (normalWeight + weight) < weight) {
+        this.beginEffect("berserk");
+        return;
+      }
     }
     if (!pool.length) {
       this._scheduleNext();
@@ -246,14 +278,58 @@ export class EffectRuntime {
     this.beginEffect(pick(pool));
   }
 
+  /** Start a berserk chain of random non-meta effects. */
+  _startBerserk() {
+    const def = CFG.effects.berserk;
+    const count =
+      def && "chainCount" in def ? Math.max(1, Math.floor(Number(def.chainCount) || 5)) : 5;
+    this._berserkTotal = count;
+    this._berserkLeft = count;
+    this.onEffectStart?.("berserk");
+    this._beginBerserkLink();
+  }
+
+  _beginBerserkLink() {
+    const pool = playableEffectIds();
+    if (!pool.length || this._berserkLeft <= 0) {
+      this._berserkLeft = 0;
+      this._berserkTotal = 0;
+      if (this.autoSchedule) this._scheduleNext();
+      return;
+    }
+    this._berserkLeft -= 1;
+    const berserk = CFG.effects.berserk;
+    const min =
+      berserk && "linkDurationMinMs" in berserk
+        ? Number(berserk.linkDurationMinMs)
+        : CFG.common.durationMinMs;
+    const max =
+      berserk && "linkDurationMaxMs" in berserk
+        ? Number(berserk.linkDurationMaxMs)
+        : CFG.common.durationMaxMs;
+    const id = pick(pool);
+    this.beginEffect(id, {
+      durationMs: randRange(min, max),
+      fromBerserk: true,
+      skipStartHook: false,
+    });
+  }
+
   /**
    * @param {string} id
-   * @param {{ durationMs?: number }} [opts]
+   * @param {{ durationMs?: number, fromBerserk?: boolean, skipStartHook?: boolean }} [opts]
    */
   beginEffect(id, opts = {}) {
     const def = CFG.effects[/** @type {keyof typeof CFG.effects} */ (id)];
     if (!def || def.enabled === false) {
       if (this.autoSchedule) this._scheduleNext();
+      return;
+    }
+
+    // Meta berserk: kick off the chain instead of a normal timed effect.
+    if ("meta" in def && def.meta) {
+      if (this.active) this.endEffect({ reschedule: false });
+      this._startBerserk();
       return;
     }
 
@@ -287,11 +363,13 @@ export class EffectRuntime {
     this.rimEl.classList.toggle("is-negative", polarity === "negative");
     this.rimEl.classList.toggle("is-quake", "jitterAmp" in def);
     this.rimEl.classList.toggle("is-overcharge", "rampStart" in def);
+    this.rimEl.classList.toggle("is-berserk", this._berserkTotal > 0);
     this.countdownEl.hidden = false;
     this.countdownEl.classList.toggle("is-positive", polarity === "positive");
     this.countdownEl.classList.toggle("is-negative", polarity === "negative");
     this.labelEl.textContent = this._labelFor(def);
     this._syncCountdown(now);
+    if (!opts.skipStartHook) this.onEffectStart?.(id);
   }
 
   /**
@@ -356,7 +434,12 @@ export class EffectRuntime {
                 : "photoHit" in def
                   ? def.photoHit
                   : undefined;
-    return t(def.labelKey || "leaders", x == null ? undefined : { x });
+    const base = t(def.labelKey || "leaders", x == null ? undefined : { x });
+    if (this._berserkTotal > 0) {
+      const n = this._berserkTotal - this._berserkLeft;
+      return t("effectBerserkLabel", { n, total: this._berserkTotal, label: base });
+    }
+    return base;
   }
 
   /**
@@ -378,6 +461,13 @@ export class EffectRuntime {
     this._sequenceLayouts = null;
     this._sequenceBursts = [];
     this.hideChrome();
+
+    // Berserk: chain the next link immediately (no schedule gap).
+    if (this._berserkLeft > 0) {
+      this._beginBerserkLink();
+      return;
+    }
+    this._berserkTotal = 0;
     if (reschedule && this.autoSchedule) this._scheduleNext();
   }
 

@@ -6,9 +6,13 @@
  */
 export const EFFECTS_CONFIG = {
   common: {
-    /** Wait before next effect (ms). Slightly tighter for more on-screen energy. */
-    scheduleDelayMinMs: 5_000,
-    scheduleDelayMaxMs: 10_000,
+    /**
+     * Wait before next effect (ms).
+     * 2026-10-23: tightened from 5–10s → 3–7s for snappier chaos;
+     * still room for tip/milestone readability after first click.
+     */
+    scheduleDelayMinMs: 3_000,
+    scheduleDelayMaxMs: 7_000,
 
     /** Active effect length (ms). */
     durationMinMs: 7_000,
@@ -41,6 +45,8 @@ export const EFFECTS_CONFIG = {
     click_x2: {
       polarity: "positive",
       labelKey: "effectX2",
+      tipNameKey: "effectTipName_click_x2",
+      tipBodyKey: "effectTipBody_click_x2",
       enabled: true,
       /** Cube hit multiplier (miss still uses common.miss). */
       hitMultiplier: 3,
@@ -49,6 +55,8 @@ export const EFFECTS_CONFIG = {
     click_x3: {
       polarity: "positive",
       labelKey: "effectX3",
+      tipNameKey: "effectTipName_click_x3",
+      tipBodyKey: "effectTipBody_click_x3",
       enabled: true,
       hitMultiplier: 5,
     },
@@ -56,6 +64,8 @@ export const EFFECTS_CONFIG = {
     flying_photo: {
       polarity: "positive",
       labelKey: "effectFlyingPhoto",
+      tipNameKey: "effectTipName_flying_photo",
+      tipBodyKey: "effectTipBody_flying_photo",
       enabled: true,
       photo: "assets/effect-photo-a.jpg",
       /** Score on photo click. */
@@ -73,6 +83,8 @@ export const EFFECTS_CONFIG = {
     rising_combo: {
       polarity: "positive",
       labelKey: "effectRisingCombo",
+      tipNameKey: "effectTipName_rising_combo",
+      tipBodyKey: "effectTipBody_rising_combo",
       enabled: true,
       startHit: 1,
       stepHit: 1,
@@ -87,6 +99,8 @@ export const EFFECTS_CONFIG = {
     number_order: {
       polarity: "positive",
       labelKey: "effectNumberOrder",
+      tipNameKey: "effectTipName_number_order",
+      tipBodyKey: "effectTipBody_number_order",
       enabled: true,
       sequenceCount: 6,
       scaleFactor: 0.34,
@@ -104,6 +118,8 @@ export const EFFECTS_CONFIG = {
     shrink_wander: {
       polarity: "negative",
       labelKey: "effectShrinkWander",
+      tipNameKey: "effectTipName_shrink_wander",
+      tipBodyKey: "effectTipBody_shrink_wander",
       enabled: true,
       /** Cube size while effect is active. */
       scaleFactor: 0.5,
@@ -120,6 +136,8 @@ export const EFFECTS_CONFIG = {
     quake: {
       polarity: "negative",
       labelKey: "effectQuake",
+      tipNameKey: "effectTipName_quake",
+      tipBodyKey: "effectTipBody_quake",
       enabled: true,
       scaleFactor: 0.58,
       speedMin: 160,
@@ -134,6 +152,8 @@ export const EFFECTS_CONFIG = {
     invert_clicks: {
       polarity: "negative",
       labelKey: "effectInvert",
+      tipNameKey: "effectTipName_invert_clicks",
+      tipBodyKey: "effectTipBody_invert_clicks",
       enabled: true,
       /** Overrides common hit/miss while active. */
       hit: -1,
@@ -143,6 +163,8 @@ export const EFFECTS_CONFIG = {
     cover_photo: {
       polarity: "negative",
       labelKey: "effectCoverPhoto",
+      tipNameKey: "effectTipName_cover_photo",
+      tipBodyKey: "effectTipBody_cover_photo",
       enabled: true,
       photo: "assets/effect-photo-b.jpg",
       /** Click on photo (not cube) subtracts clicks. */
@@ -154,6 +176,8 @@ export const EFFECTS_CONFIG = {
     split_twins: {
       polarity: "negative",
       labelKey: "effectSplitTwins",
+      tipNameKey: "effectTipName_split_twins",
+      tipBodyKey: "effectTipBody_split_twins",
       enabled: true,
       /** Each twin is this fraction of the normal cube. */
       scaleFactor: 0.46,
@@ -167,6 +191,8 @@ export const EFFECTS_CONFIG = {
     split_lottery: {
       polarity: "positive",
       labelKey: "effectSplitLottery",
+      tipNameKey: "effectTipName_split_lottery",
+      tipBodyKey: "effectTipBody_split_lottery",
       enabled: true,
       /** Each twin is this fraction of the normal cube. */
       scaleFactor: 0.52,
@@ -190,6 +216,8 @@ export const EFFECTS_CONFIG = {
     overcharge: {
       polarity: "positive",
       labelKey: "effectOvercharge",
+      tipNameKey: "effectTipName_overcharge",
+      tipBodyKey: "effectTipBody_overcharge",
       enabled: true,
       rampStart: 2,
       rampStep: 1,
@@ -202,11 +230,31 @@ export const EFFECTS_CONFIG = {
     neon_orb: {
       polarity: "positive",
       labelKey: "effectNeonOrb",
+      tipNameKey: "effectTipName_neon_orb",
+      tipBodyKey: "effectTipBody_neon_orb",
       enabled: true,
       orbHit: 12,
       sizeFactor: 1.5,
       speedMin: 170,
       speedMax: 320,
+    },
+
+    /**
+     * Berserk (meta): rare chain of N random non-meta effects back-to-back.
+     * Not playable as a standalone mechanic — starts the chain immediately.
+     */
+    berserk: {
+      polarity: "positive",
+      labelKey: "effectBerserk",
+      tipNameKey: "effectTipName_berserk",
+      tipBodyKey: "effectTipBody_berserk",
+      enabled: true,
+      meta: true,
+      chainCount: 5,
+      /** Relative schedule weight vs default 1 — keep rare for first session. */
+      scheduleWeight: 0.14,
+      linkDurationMinMs: 4_000,
+      linkDurationMaxMs: 6_000,
     },
   },
 };

@@ -13,15 +13,33 @@ import { isDemoMode, startDemoReel } from "./demo-reel.js";
 import { initPwa } from "./pwa.js";
 import { trackEvent } from "./analytics.js";
 import { initEffectsTip } from "./onboarding-tip.js";
+import { initEffectTips } from "./effect-tips.js";
 import { initMilestones } from "./milestones.js";
+import { initQuestionGift } from "./question-gift.js";
 import { initShop } from "./shop.js";
 
 const TAP_HINT_KEY = "neon-forge-tap-hint-seen";
 let firstClickTracked = false;
-/** Soft-freeze the loop while the effects tip is open (no pause glyph). */
+/** Soft-freeze the loop while a tip overlay is open (no pause glyph). */
 let tipFrozen = false;
 /** Wall-clock anchor for tip freeze (separate from leaderboard pause). */
 let tipPauseAnchor = 0;
+
+/** @type {ReturnType<typeof initEffectTips> | null} */
+let effectTips = null;
+
+function freezeForTip() {
+  tipFrozen = true;
+  tipPauseAnchor = performance.now();
+}
+
+function unfreezeTip() {
+  if (tipPauseAnchor) {
+    effects.shiftClock(performance.now() - tipPauseAnchor);
+    tipPauseAnchor = 0;
+  }
+  tipFrozen = false;
+}
 
 initI18n(/** @type {HTMLElement} */ (document.getElementById("locale-list")));
 
@@ -30,6 +48,7 @@ const menu = initMenu({
   button: /** @type {HTMLButtonElement} */ (document.getElementById("menu-btn")),
   closeBtn: /** @type {HTMLButtonElement} */ (document.getElementById("menu-close")),
   backdrop: /** @type {HTMLElement} */ (document.getElementById("menu-backdrop")),
+  onClose: () => effectTips?.resume(),
 });
 
 initPwa({
@@ -50,6 +69,7 @@ function openAbout() {
 function closeAbout() {
   aboutRoot.hidden = true;
   document.body.classList.remove("is-about-open");
+  effectTips?.resume();
 }
 
 document.getElementById("about-open")?.addEventListener("click", openAbout);
@@ -181,6 +201,7 @@ const effects = new EffectRuntime({
   rimEl: /** @type {HTMLElement} */ (document.getElementById("effect-rim")),
   countdownEl: /** @type {HTMLElement} */ (document.getElementById("effect-countdown")),
   labelEl: /** @type {HTMLElement} */ (document.getElementById("effect-label")),
+  onEffectStart: (id) => effectTips?.noteEffect(id),
 });
 effects.start();
 
@@ -221,17 +242,26 @@ const effectsTip = initEffectsTip({
   dismissBtn: /** @type {HTMLButtonElement} */ (document.getElementById("effects-tip-dismiss")),
   backdrop: /** @type {HTMLElement} */ (document.getElementById("effects-tip-backdrop")),
   enabled: !isDemoMode(),
-  onOpen: () => {
-    tipFrozen = true;
-    tipPauseAnchor = performance.now();
-  },
+  onOpen: () => freezeForTip(),
   onClose: () => {
-    if (tipPauseAnchor) {
-      effects.shiftClock(performance.now() - tipPauseAnchor);
-      tipPauseAnchor = 0;
-    }
-    tipFrozen = false;
+    unfreezeTip();
     milestones.onTipClosed();
+    effectTips?.resume();
+  },
+});
+
+effectTips = initEffectTips({
+  root: /** @type {HTMLElement} */ (document.getElementById("effect-type-tip")),
+  titleEl: /** @type {HTMLElement} */ (document.getElementById("effect-type-tip-title")),
+  bodyEl: /** @type {HTMLElement} */ (document.getElementById("effect-type-tip-body")),
+  dismissBtn: /** @type {HTMLButtonElement} */ (document.getElementById("effect-type-tip-dismiss")),
+  backdrop: /** @type {HTMLElement} */ (document.getElementById("effect-type-tip-backdrop")),
+  enabled: !isDemoMode(),
+  isBlocked: () => effectsTip.isOpen(),
+  onOpen: () => freezeForTip(),
+  onClose: () => {
+    unfreezeTip();
+    milestones.flushQueue();
   },
 });
 
@@ -239,12 +269,32 @@ const milestones = initMilestones({
   root: /** @type {HTMLElement} */ (document.getElementById("milestone-toast")),
   textEl: /** @type {HTMLElement} */ (document.getElementById("milestone-toast-text")),
   enabled: !isDemoMode(),
-  tipIsOpen: () => effectsTip.isOpen(),
+  tipIsOpen: () => effectsTip.isOpen() || Boolean(effectTips?.isOpen()),
+  tipGateActive: () => !isDemoMode(),
   onCelebrate: () => {
     particles.burst(baseCx || width * 0.5, baseCy || height * 0.48, { intense: true });
   },
 });
 milestones.syncScore(scores.score);
+
+const questionGift = initQuestionGift({
+  layer: /** @type {HTMLElement} */ (document.getElementById("question-gift-layer")),
+  enabled: !isDemoMode(),
+  isBlocked: () =>
+    effectsTip.isOpen() ||
+    Boolean(effectTips?.isOpen()) ||
+    document.body.classList.contains("is-menu-open") ||
+    document.body.classList.contains("is-about-open"),
+  onCatch: (reward) => {
+    particles.burst(baseCx || width * 0.5, baseCy || height * 0.48, { intense: true });
+    particles.burst(baseCx || width * 0.5, (baseCy || height * 0.48) - 40, { intense: true });
+    applyDelta(reward, baseCx || width * 0.5, baseCy || height * 0.48, {
+      fromCounter: true,
+      hitCube: true,
+    });
+  },
+});
+questionGift.syncScore(scores.score);
 
 const shop = initShop({
   root: /** @type {HTMLElement} */ (document.getElementById("forge-shop")),
@@ -262,7 +312,9 @@ const shop = initShop({
   onScoreChange: () => {
     counter.setScore(scores.score, { animate: true });
     milestones.noteScore(scores.score);
+    questionGift.noteScore(scores.score);
   },
+  onClose: () => effectTips?.resume(),
 });
 
 // Returning players already know the loop — resume chaos immediately.
@@ -289,6 +341,7 @@ if (isLocalDevHost()) {
     ["dev-fx-overcharge", "overcharge"],
     ["dev-fx-orb", "neon_orb"],
     ["dev-fx-quake", "quake"],
+    ["dev-fx-berserk", "berserk"],
   ];
   for (const [btnId, effectId] of localFxButtons) {
     const btn = /** @type {HTMLButtonElement} */ (document.getElementById(btnId));
@@ -327,6 +380,7 @@ const auth = await initAuth({
       await scores.attachUser(user);
       counter.setScore(scores.score, { animate: false });
       milestones.syncScore(scores.score);
+      questionGift.syncScore(scores.score);
       void leaderboard.refresh();
     } else {
       scores.detachUser();
@@ -438,6 +492,7 @@ function applyDelta(delta, x, y, meta = {}) {
     animate: true,
   });
   milestones.noteScore(scores.score);
+  questionGift.noteScore(scores.score);
   if (meta.fromCounter) {
     floats.spawnFromCounter(counterRoot, delta);
   } else {

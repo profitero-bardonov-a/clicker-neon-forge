@@ -190,7 +190,12 @@
     <button type="button" class="dev-fx__btn" id="dev-fx-quake" title="Local only">
       Quake
     </button>
+    <button type="button" class="dev-fx__btn" id="dev-fx-berserk" title="Local only">
+      Berserk
+    </button>
   </div>
+
+  <div class="question-gift-layer" id="question-gift-layer" hidden aria-hidden="true"></div>
 
   <div class="hud" aria-live="polite">
     <div class="hud__top">
@@ -331,6 +336,20 @@
         empty taps can cost clicks.
       </p>
       <button type="button" class="tip__btn" id="effects-tip-dismiss" data-i18n="effectsTipGotIt">Got it</button>
+    </div>
+  </div>
+
+  <div class="tip" id="effect-type-tip" hidden>
+    <button type="button" class="tip__backdrop" id="effect-type-tip-backdrop" tabindex="-1" aria-hidden="true"></button>
+    <div
+      class="tip__panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="effect-type-tip-title"
+    >
+      <h2 class="tip__title" id="effect-type-tip-title">Effect</h2>
+      <p class="tip__text" id="effect-type-tip-body"></p>
+      <button type="button" class="tip__btn" id="effect-type-tip-dismiss" data-i18n="effectsTipGotIt">Got it</button>
     </div>
   </div>
 

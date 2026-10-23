@@ -1,6 +1,9 @@
 /**
- * Milestone gifts v0 — short HUD toasts at click thresholds.
+ * Milestone gifts — short HUD toasts at click thresholds.
  * Claimed set in localStorage; no economy / Identity / DB.
+ *
+ * Tip gate: threshold 10 waits until the first-session effects tip is seen,
+ * but higher thresholds are never blocked behind that wait.
  */
 import { onLocaleChange, t } from "./i18n.js";
 import { trackEvent } from "./analytics.js";
@@ -55,11 +58,19 @@ function effectsTipSeen() {
  *   textEl: HTMLElement,
  *   enabled?: boolean,
  *   tipIsOpen?: () => boolean,
+ *   tipGateActive?: () => boolean,
  *   onCelebrate?: (threshold: number) => void,
  * }} opts
  */
 export function initMilestones(opts) {
-  const { root, textEl, enabled = true, tipIsOpen = () => false, onCelebrate } = opts;
+  const {
+    root,
+    textEl,
+    enabled = true,
+    tipIsOpen = () => false,
+    tipGateActive = () => true,
+    onCelebrate,
+  } = opts;
   /** @type {Set<number>} */
   let claimed = readClaimed();
   /** @type {number[]} */
@@ -101,16 +112,21 @@ export function initMilestones(opts) {
     }, TOAST_MS);
   }
 
+  /**
+   * @param {number} threshold
+   */
+  function holdsForTip(threshold) {
+    return threshold === 10 && tipGateActive() && !effectsTipSeen();
+  }
+
   function flushQueue() {
     if (!enabled || showing || tipIsOpen()) return;
-    while (queue.length) {
-      const next = queue.shift();
+    // Tip@10 may wait, but never block later thresholds forever.
+    for (let i = 0; i < queue.length; i++) {
+      const next = queue[i];
       if (next == null) continue;
-      // Tip at ~10 clicks wins; milestone 10 waits until tip dismissed/seen.
-      if (next === 10 && !effectsTipSeen()) {
-        queue.unshift(next);
-        return;
-      }
+      if (holdsForTip(next)) continue;
+      queue.splice(i, 1);
       showToast(next);
       return;
     }
@@ -146,10 +162,14 @@ export function initMilestones(opts) {
     }
   }
 
-  /** Seed lastScore without toasting (call once after load / attachUser). */
+  /**
+   * Seed lastScore without toasting (call once after load / attachUser).
+   * Silently claims thresholds ≤ score so returning players / shop spends
+   * do not re-toast past gifts; *next* unclaimed thresholds still toast via noteScore.
+   * @param {number} score
+   */
   function syncScore(score) {
     lastScore = Math.floor(Number(score)) || 0;
-    // Returning players past a threshold: mark claimed so a later jump cannot spam.
     let dirty = false;
     for (const threshold of MILESTONE_THRESHOLDS) {
       if (lastScore >= threshold && !claimed.has(threshold)) {

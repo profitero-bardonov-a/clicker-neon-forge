@@ -32,7 +32,10 @@ export class Leaderboard {
     this._expanded = false;
     /** @type {Array<{ rank: number, name: string, avatarUrl: string | null, clicks: number, online?: boolean }>} */
     this._leaders = [];
+    /** Engaged scorers (clicks ≥ 1) — used for hygiene metrics. */
     this._total = 0;
+    /** All score rows including zeros/negatives — UI denominator when larger. */
+    this._totalPlayers = 0;
     this._offline = false;
     this._usingStubs = false;
 
@@ -114,26 +117,34 @@ export class Leaderboard {
     this._offline = false;
     // Stubs may include deliberate junk rows to exercise hygiene locally.
     this._leaders = filterPublicLeaders([...LEADERBOARD_STUBS]);
-    this._total = Math.max(this._leaders.length, LEADERBOARD_STUBS_TOTAL);
+    this._total = this._leaders.length;
+    this._totalPlayers = Math.max(this._leaders.length, LEADERBOARD_STUBS_TOTAL);
     this._render(this._leaders);
     this.statusEl.textContent = "DEV";
   }
 
   /**
+   * Visible page size / overall player pool (not faked).
+   * Prefers API `totalPlayers` (all rows); falls back to engaged `total`.
    * @param {number} shown
-   * @param {number} total
+   * @param {number} totalPlayers
    */
-  _setCount(shown, total) {
+  _setCount(shown, totalPlayers) {
     if (!this.countEl) return;
     const s = Math.max(0, Math.floor(Number(shown) || 0));
-    const t = Math.max(s, Math.floor(Number(total) || 0));
-    if (t <= 0 && s <= 0) {
+    const total = Math.max(s, Math.floor(Number(totalPlayers) || 0));
+    if (total <= 0 && s <= 0) {
       this.countEl.hidden = true;
       this.countEl.textContent = "";
+      this.countEl.removeAttribute("title");
+      this.countEl.removeAttribute("aria-label");
       return;
     }
     this.countEl.hidden = false;
-    this.countEl.textContent = `${s}/${t}`;
+    this.countEl.textContent = `${s} / ${total}`;
+    const label = t("leadersCountLabel", { shown: s, total });
+    this.countEl.title = label;
+    this.countEl.setAttribute("aria-label", label);
   }
 
   _syncToggleLabel() {
@@ -161,9 +172,14 @@ export class Leaderboard {
       // Defense in depth if an older function build still returns ≤0 rows.
       this._leaders = filterPublicLeaders(Array.isArray(data.leaders) ? data.leaders : []);
       const total = Math.floor(Number(data.total));
+      const totalPlayers = Math.floor(Number(data.totalPlayers));
       this._total = Number.isFinite(total)
         ? Math.max(this._leaders.length, total)
         : this._leaders.length;
+      // Denominator: all players when API provides it; else engaged total (never invent).
+      this._totalPlayers = Number.isFinite(totalPlayers)
+        ? Math.max(this._leaders.length, totalPlayers)
+        : this._total;
       this._render(this._leaders);
       this.statusEl.textContent = "";
     } catch {
@@ -184,7 +200,7 @@ export class Leaderboard {
     this.listEl.innerHTML = "";
     this.root.classList.toggle("is-empty", leaders.length === 0);
     this.root.classList.toggle("is-short", leaders.length > 0 && leaders.length <= 2);
-    this._setCount(leaders.length, this._total);
+    this._setCount(leaders.length, this._totalPlayers || this._total);
 
     if (!leaders.length) {
       const empty = document.createElement("li");

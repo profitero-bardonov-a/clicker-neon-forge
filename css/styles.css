@@ -1114,6 +1114,11 @@ body.is-paused .float-text {
   animation: fx-rim-quake 0.09s linear infinite;
 }
 
+.effect-rim.is-berserk .effect-rim__glow {
+  opacity: 0.95;
+  filter: saturate(1.35) hue-rotate(-12deg);
+}
+
 .effect-rim.is-overcharge .effect-rim__glow {
   animation: fx-rim-pulse 0.55s ease-in-out infinite;
 }
@@ -1489,6 +1494,54 @@ body.is-demo #shop-open,
 body.is-demo #menu-shop-section,
 body.is-demo #forge-shop {
   display: none !important;
+}
+
+.question-gift-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 16;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.question-gift-layer[hidden] {
+  display: none !important;
+}
+
+.question-gift {
+  position: absolute;
+  left: 0;
+  top: 0;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  margin: 0;
+  padding: 0;
+  border: 2px solid rgba(255, 179, 71, 0.85);
+  border-radius: 999px;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  font-family: "Syne", sans-serif;
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #0a0e14;
+  background: radial-gradient(circle at 35% 30%, #ffe08a, #ffb347 55%, #ff7a1a);
+  box-shadow:
+    0 0 24px rgba(255, 179, 71, 0.55),
+    0 8px 28px rgba(0, 0, 0, 0.35);
+  will-change: transform;
+}
+
+.question-gift:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .question-gift {
+    transition: none;
+  }
 }
 
 .milestone-toast {
