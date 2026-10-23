@@ -895,6 +895,7 @@ async function assertQuestionGift() {
     QUESTION_GIFT_STEP,
     QUESTION_GIFT_REWARD,
     QUESTION_GIFT_STORAGE_KEY,
+    QUESTION_GIFT_LIFE_MS,
     crossedQuestionThresholds,
     initQuestionGift,
   } = await import(join(root, "js/question-gift.js"));
@@ -903,6 +904,10 @@ async function assertQuestionGift() {
   }
   if (QUESTION_GIFT_STORAGE_KEY !== "neon-forge-question-gifts") {
     throw new Error("question gift storage key mismatch");
+  }
+  // Was 6500ms; 2000ms ≈ 3.25× screen-cross speed (target 2.5–4×).
+  if (QUESTION_GIFT_LIFE_MS !== 2000) {
+    throw new Error("question gift LIFE_MS must stay 2000 (fast fly) unless DECISIONS.md changes");
   }
   if (JSON.stringify(crossedQuestionThresholds(999, 1000)) !== "[1000]") {
     throw new Error("crossing 1000 must emit threshold 1000");
