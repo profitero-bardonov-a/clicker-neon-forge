@@ -302,6 +302,23 @@
     </nav>
   </div>
 
+  <div class="tip" id="effects-tip" hidden>
+    <button type="button" class="tip__backdrop" id="effects-tip-backdrop" tabindex="-1" aria-hidden="true"></button>
+    <div
+      class="tip__panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="effects-tip-title"
+    >
+      <h2 class="tip__title" id="effects-tip-title" data-i18n="effectsTipTitle">Effects are coming</h2>
+      <p class="tip__text" data-i18n="effectsTipBody">
+        Timed buffs and traps will pop up — multipliers, combos, lottery twins, and drains. Hit the glowing targets;
+        empty taps can cost clicks.
+      </p>
+      <button type="button" class="tip__btn" id="effects-tip-dismiss" data-i18n="effectsTipGotIt">Got it</button>
+    </div>
+  </div>
+
   <div class="modal" id="logout-modal" hidden>
     <button type="button" class="modal__backdrop" id="logout-backdrop" tabindex="-1" aria-hidden="true"></button>
     <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="logout-title">

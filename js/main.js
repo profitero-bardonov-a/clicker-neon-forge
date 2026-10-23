@@ -12,9 +12,14 @@ import { isLocalDevHost } from "./leaderboard-stubs.js";
 import { isDemoMode, startDemoReel } from "./demo-reel.js";
 import { initPwa } from "./pwa.js";
 import { trackEvent } from "./analytics.js";
+import { initEffectsTip } from "./onboarding-tip.js";
 
 const TAP_HINT_KEY = "neon-forge-tap-hint-seen";
 let firstClickTracked = false;
+/** Soft-freeze the loop while the effects tip is open (no pause glyph). */
+let tipFrozen = false;
+/** Wall-clock anchor for tip freeze (separate from leaderboard pause). */
+let tipPauseAnchor = 0;
 
 initI18n(/** @type {HTMLElement} */ (document.getElementById("locale-list")));
 
@@ -204,6 +209,24 @@ function maybeShowTapHint() {
 /** Zero local score at load → first-session coaching + miss forgiveness. */
 const newPlayerSession = scores.score === 0 && !isDemoMode();
 
+const effectsTip = initEffectsTip({
+  root: /** @type {HTMLElement} */ (document.getElementById("effects-tip")),
+  dismissBtn: /** @type {HTMLButtonElement} */ (document.getElementById("effects-tip-dismiss")),
+  backdrop: /** @type {HTMLElement} */ (document.getElementById("effects-tip-backdrop")),
+  enabled: !isDemoMode(),
+  onOpen: () => {
+    tipFrozen = true;
+    tipPauseAnchor = performance.now();
+  },
+  onClose: () => {
+    if (tipPauseAnchor) {
+      effects.shiftClock(performance.now() - tipPauseAnchor);
+      tipPauseAnchor = 0;
+    }
+    tipFrozen = false;
+  },
+});
+
 // Returning players already know the loop — resume chaos immediately.
 if (!newPlayerSession) {
   effects.armSchedule();
@@ -385,6 +408,7 @@ function applyDelta(delta, x, y, meta = {}) {
 function onPointerDown(e) {
   if (e.button !== 0) return;
   if (document.body.classList.contains("is-about-open")) return;
+  if (document.body.classList.contains("is-tip-open")) return;
   if (document.body.classList.contains("is-menu-open")) {
     menu.close();
     return;
@@ -463,6 +487,8 @@ function onPointerDown(e) {
     });
   }
 
+  effectsTip.noteCanvasClick();
+
   const seqBursts = effects.takeSequenceBursts();
   if (seqBursts.length) {
     for (const p of seqBursts) {
@@ -494,7 +520,11 @@ function frame(now) {
     effects.shiftClock(now - pauseAnchor);
     pauseAnchor = now;
   }
-  const dt = paused ? 0 : Math.min(0.033, elapsed / 1000);
+  if (tipFrozen && tipPauseAnchor) {
+    effects.shiftClock(now - tipPauseAnchor);
+    tipPauseAnchor = now;
+  }
+  const dt = paused || tipFrozen ? 0 : Math.min(0.033, elapsed / 1000);
 
   const layout = layoutState();
   const drain = effects.update(dt, layout);

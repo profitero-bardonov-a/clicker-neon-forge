@@ -1223,6 +1223,65 @@ body.is-demo #dev-fx {
   display: none !important;
 }
 
+.tip {
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+  pointer-events: auto;
+}
+
+.tip__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(4, 8, 12, 0.55);
+  cursor: pointer;
+}
+
+.tip__panel {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%);
+  inline-size: min(calc(100% - 2rem), 19rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.05rem 1.1rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(61, 231, 255, 0.28);
+  background: linear-gradient(180deg, #141e2a, #0c121a);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+}
+
+.tip__title {
+  font-family: "Syne", sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.tip__text {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--steel);
+}
+
+.tip__btn {
+  margin-block-start: 0.15rem;
+  border: 0;
+  border-radius: 0.45rem;
+  padding-block: 0.72rem;
+  padding-inline: 0.9rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  color: var(--bg-deep);
+  background: linear-gradient(135deg, var(--cyan), #7af0ff);
+}
+
 .tap-hint {
   position: fixed;
   left: 50%;

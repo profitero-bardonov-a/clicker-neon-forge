@@ -21,6 +21,7 @@ const required = [
   "js/leaderboard-rules.js",
   "js/score-store.js",
   "js/analytics.js",
+  "js/onboarding-tip.js",
   "js/effects-config.js",
   "js/effects.js",
   "js/float-texts.js",
@@ -63,6 +64,7 @@ function assertHtml() {
     'id="leaderboard-toggle"',
     'id="effect-rim"',
     'id="tap-hint"',
+    'id="effects-tip"',
     'src="js/main.js"',
   ]) {
     if (!html.includes(needle)) {
@@ -81,6 +83,11 @@ function assertI18n() {
   }
   if (!src.includes("tapHint")) {
     throw new Error("i18n.js must include tapHint for first-session coach mark");
+  }
+  for (const key of ["effectsTipTitle", "effectsTipBody", "effectsTipGotIt"]) {
+    if (!src.includes(key)) {
+      throw new Error(`i18n.js must include ${key} for onboarding tip`);
+    }
   }
 }
 
@@ -102,6 +109,115 @@ function assertEffectsGate() {
   const cfg = readFileSync(join(root, "js/effects-config.js"), "utf8");
   if (!cfg.includes("missForgivenessMs")) {
     throw new Error("effects-config.js must define missForgivenessMs");
+  }
+}
+
+async function assertOnboardingTip() {
+  const { EFFECTS_TIP_AFTER_CLICKS, initEffectsTip } = await import(
+    join(root, "js/onboarding-tip.js")
+  );
+  if (EFFECTS_TIP_AFTER_CLICKS !== 10) {
+    throw new Error("EFFECTS_TIP_AFTER_CLICKS must stay 10 unless DECISIONS.md changes");
+  }
+
+  // Minimal DOM stubs for Node.
+  const store = new Map();
+  const localStorageStub = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+  };
+  const prevLS = globalThis.localStorage;
+  const prevWindow = globalThis.window;
+  const prevDocument = globalThis.document;
+  globalThis.localStorage = localStorageStub;
+  const bodyClass = new Set();
+  globalThis.document = {
+    body: {
+      classList: {
+        add: (c) => bodyClass.add(c),
+        remove: (c) => bodyClass.delete(c),
+        contains: (c) => bodyClass.has(c),
+      },
+    },
+  };
+  globalThis.window = {
+    addEventListener() {},
+  };
+
+  try {
+    /** @type {string[]} */
+    const events = [];
+    const prevGtag = /** @type {any} */ (globalThis).gtag;
+    /** @type {any} */ (globalThis).gtag = (cmd, name, params) => {
+      if (cmd === "event") events.push(String(name));
+    };
+
+    const tipRoot = {
+      hidden: true,
+      querySelector: (sel) => {
+        if (String(sel).includes("effectsTipTitle")) return { textContent: "" };
+        if (String(sel).includes("effectsTipBody")) return { textContent: "" };
+        if (String(sel).includes("effectsTipGotIt")) return { textContent: "" };
+        return null;
+      },
+    };
+    const dismissBtn = {
+      focus() {},
+      setAttribute() {},
+      addEventListener(type, fn) {
+        this._click = type === "click" ? fn : this._click;
+      },
+      _click: /** @type {null | Function} */ (null),
+    };
+    const backdrop = {
+      addEventListener(type, fn) {
+        this._click = type === "click" ? fn : this._click;
+      },
+      _click: /** @type {null | Function} */ (null),
+    };
+
+    let opened = false;
+    const tip = initEffectsTip({
+      root: /** @type {any} */ (tipRoot),
+      dismissBtn: /** @type {any} */ (dismissBtn),
+      backdrop: /** @type {any} */ (backdrop),
+      onOpen: () => {
+        opened = true;
+      },
+      onClose: () => {
+        opened = false;
+      },
+    });
+
+    for (let i = 0; i < 9; i++) tip.noteCanvasClick();
+    if (opened || !tipRoot.hidden) throw new Error("tip must not open before 10 clicks");
+    tip.noteCanvasClick();
+    if (!opened || tipRoot.hidden) throw new Error("tip must open on the 10th click");
+    if (!events.includes("effects_tip_shown")) throw new Error("missing effects_tip_shown event");
+
+    dismissBtn._click?.({ preventDefault() {}, stopPropagation() {} });
+    if (opened || !tipRoot.hidden) throw new Error("tip must close on Got it");
+    if (!events.includes("effects_tip_dismiss")) throw new Error("missing effects_tip_dismiss event");
+    if (localStorageStub.getItem("neon-forge-effects-tip-seen") !== "1") {
+      throw new Error("tip dismiss must persist seen flag");
+    }
+
+    tip.noteCanvasClick();
+    if (opened) throw new Error("tip must not reopen after seen");
+
+    /** @type {any} */ (globalThis).gtag = prevGtag;
+  } finally {
+    if (prevLS === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevLS;
+    if (prevWindow === undefined) delete globalThis.window;
+    else globalThis.window = prevWindow;
+    if (prevDocument === undefined) delete globalThis.document;
+    else globalThis.document = prevDocument;
+  }
+
+  const mainSrc = readFileSync(join(root, "js/main.js"), "utf8");
+  if (!mainSrc.includes("initEffectsTip") || !mainSrc.includes("noteCanvasClick")) {
+    throw new Error("main.js must wire onboarding tip");
   }
 }
 
@@ -236,6 +352,7 @@ async function main() {
   assertHtml();
   assertI18n();
   assertEffectsGate();
+  await assertOnboardingTip();
   await assertMissForgiveness();
   await assertLeaderboardHygiene();
   await serveAndFetch();

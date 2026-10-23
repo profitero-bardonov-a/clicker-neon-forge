@@ -92,6 +92,10 @@ const MESSAGES = {
     effectRisingCombo: "COMBO +{x}",
     effectNumberOrder: "NEXT {x}",
     tapHint: "Tap the cube",
+    effectsTipTitle: "Effects are coming",
+    effectsTipBody:
+      "Timed buffs and traps will pop up — multipliers, combos, lottery twins, and drains. Hit the glowing targets; empty taps can cost clicks.",
+    effectsTipGotIt: "Got it",
   },
   ru: {
     title: "Neon Forge — бесплатный онлайн-кликер",
@@ -171,6 +175,10 @@ const MESSAGES = {
     effectRisingCombo: "КОМБО +{x}",
     effectNumberOrder: "ДАЛЬШЕ {x}",
     tapHint: "Жми на куб",
+    effectsTipTitle: "Скоро эффекты",
+    effectsTipBody:
+      "Появятся усиления и ловушки — множители, комбо, лотерея и слив очков. Бей по подсвеченным целям; промахи могут отнимать клики.",
+    effectsTipGotIt: "Понятно",
   },
   es: {
     title: "Neon Forge — clicker gratis en el navegador",
@@ -250,6 +258,10 @@ const MESSAGES = {
     effectRisingCombo: "COMBO +{x}",
     effectNumberOrder: "SIGUE {x}",
     tapHint: "Toca el cubo",
+    effectsTipTitle: "Llegan los efectos",
+    effectsTipBody:
+      "Aparecerán bonus y trampas — multiplicadores, combos, lotería y drenajes. Golpea los objetivos brillantes; los fallos pueden restar clics.",
+    effectsTipGotIt: "Entendido",
   },
   de: {
     title: "Neon Forge — kostenloser Browser-Clicker",
@@ -329,6 +341,10 @@ const MESSAGES = {
     effectRisingCombo: "KOMBO +{x}",
     effectNumberOrder: "NÄCHSTE {x}",
     tapHint: "Würfel tippen",
+    effectsTipTitle: "Effekte kommen",
+    effectsTipBody:
+      "Bald starten Buffs und Fallen — Multiplikatoren, Combos, Lotterie und Abzüge. Triff die leuchtenden Ziele; Fehlklicks können Punkte kosten.",
+    effectsTipGotIt: "Verstanden",
   },
   fr: {
     title: "Neon Forge — clicker gratuit dans le navigateur",
@@ -408,6 +424,10 @@ const MESSAGES = {
     effectRisingCombo: "COMBO +{x}",
     effectNumberOrder: "SUIVANT {x}",
     tapHint: "Touche le cube",
+    effectsTipTitle: "Les effets arrivent",
+    effectsTipBody:
+      "Des bonus et pièges vont apparaître — multiplicateurs, combos, loterie et drains. Visez les cibles lumineuses ; les ratés peuvent coûter des clics.",
+    effectsTipGotIt: "Compris",
   },
 };
 
