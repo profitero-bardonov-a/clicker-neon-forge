@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+dist/index.html
+dist/*.b64
+dist/b64part-*
+.netlify/
+.env
+.env.local
+*.pem

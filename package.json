@@ -1,0 +1,16 @@
+{
+  "name": "clicker-neon-forge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:local": "node scripts/check-local.mjs",
+    "predeploy": "npm run check:local",
+    "deploy": "node scripts/deploy.mjs",
+    "build:offline": "node build.mjs",
+    "demo": "npx --yes serve . -p 4173"
+  },
+  "dependencies": {
+    "@netlify/database": "0.5.0",
+    "@netlify/identity": "0.2.0"
+  }
+}

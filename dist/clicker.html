@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Clicker — Neon Forge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+:root {
+  --bg-deep: #0a0e14;
+  --bg-mid: #121a24;
+  --cyan: #3de7ff;
+  --cyan-dim: #1a8fa0;
+  --amber: #ffb347;
+  --amber-hot: #ff7a1a;
+  --steel: #8aa0b8;
+  --edge: #c8e8f5;
+  --text: #e8f4fa;
+  --muted: #6a8296;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: none;
+}
+
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: clamp(1rem, 3vw, 2rem) clamp(1rem, 4vw, 2.5rem)
+    clamp(1.25rem, 4vh, 2.5rem);
+  z-index: 2;
+}
+
+.brand {
+  font-family: "Syne", sans-serif;
+  font-weight: 800;
+  font-size: clamp(0.7rem, 1.6vw, 0.95rem);
+  letter-spacing: 0.35em;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.counter__label {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 500;
+  font-size: clamp(0.65rem, 1.4vw, 0.8rem);
+  letter-spacing: 0.28em;
+  color: var(--cyan-dim);
+}
+
+.counter__value {
+  font-family: "Syne", sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.8rem, 9vw, 5.5rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-shadow:
+    0 0 24px rgba(61, 231, 255, 0.25),
+    0 0 48px rgba(61, 231, 255, 0.08);
+  transition: color 0.15s ease;
+  will-change: transform;
+}
+
+.counter.is-bump .counter__value {
+  animation: counter-bump 0.42s cubic-bezier(0.22, 1.4, 0.36, 1);
+  color: var(--cyan);
+}
+
+.counter.is-hit .counter__value {
+  color: var(--amber);
+  text-shadow:
+    0 0 28px rgba(255, 179, 71, 0.45),
+    0 0 56px rgba(255, 122, 26, 0.2);
+}
+
+@keyframes counter-bump {
+  0% {
+    transform: scale(1) translateY(0);
+  }
+  28% {
+    transform: scale(1.18) translateY(-6px);
+  }
+  55% {
+    transform: scale(0.96) translateY(2px);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+  }
+}
+
+.digit-flip {
+  display: inline-block;
+  animation: digit-slide 0.35s cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+@keyframes digit-slide {
+  0% {
+    transform: translateY(40%);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="Clicker canvas"></canvas>
+
+  <div class="hud" aria-live="polite">
+    <div class="brand">NEON FORGE</div>
+    <div class="counter" id="counter">
+      <span class="counter__label">CLICKS</span>
+      <span class="counter__value" id="counter-value">0</span>
+    </div>
+  </div>
+
+  <script>
+/* --- js/math3d.js --- */
+/** @typedef {{ x: number, y: number, z: number }} Vec3 */
+/** @typedef {{ x: number, y: number, z: number }} Point2Depth */
+
+/** @param {number} x @param {number} y @param {number} z @returns {Vec3} */
+function vec3(x = 0, y = 0, z = 0) {
+  return { x, y, z };
+}
+
+/** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
+function add(a, b) {
+  return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
+}
+
+/** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
+function sub(a, b) {
+  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+}
+
+/** @param {Vec3} a @param {number} s @returns {Vec3} */
+function scale(a, s) {
+  return { x: a.x * s, y: a.y * s, z: a.z * s };
+}
+
+/** @param {Vec3} a @returns {number} */
+function length(a) {
+  return Math.hypot(a.x, a.y, a.z);
+}
+
+/** @param {Vec3} a @returns {Vec3} */
+function normalize(a) {
+  const len = length(a) || 1;
+  return { x: a.x / len, y: a.y / len, z: a.z / len };
+}
+
+/** @param {Vec3} a @param {Vec3} b @returns {number} */
+function dot(a, b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+/** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
+function cross(a, b) {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+
+/** @param {Vec3} v @param {number} ax @param {number} ay @param {number} az @returns {Vec3} */
+function rotateXYZ(v, ax, ay, az) {
+  let { x, y, z } = v;
+
+  // X
+  let cy = Math.cos(ax);
+  let sy = Math.sin(ax);
+  let y1 = y * cy - z * sy;
+  let z1 = y * sy + z * cy;
+  y = y1;
+  z = z1;
+
+  // Y
+  let cx = Math.cos(ay);
+  let sx = Math.sin(ay);
+  let x1 = x * cx + z * sx;
+  z1 = -x * sx + z * cx;
+  x = x1;
+  z = z1;
+
+  // Z
+  let cz = Math.cos(az);
+  let sz = Math.sin(az);
+  x1 = x * cz - y * sz;
+  y1 = x * sz + y * cz;
+
+  return { x: x1, y: y1, z };
+}
+
+/**
+ * Perspective project world point to screen.
+ * @param {Vec3} v
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} scalePx
+ * @param {number} [focal=3.2]
+ * @returns {Point2Depth}
+ */
+function project(v, cx, cy, scalePx, focal = 3.2) {
+  const depth = focal / (focal + v.z);
+  return {
+    x: cx + v.x * scalePx * depth,
+    y: cy + v.y * scalePx * depth,
+    z: v.z,
+  };
+}
+
+/**
+ * Point-in-triangle (barycentric), 2D.
+ * @param {{x:number,y:number}} p
+ * @param {{x:number,y:number}} a
+ * @param {{x:number,y:number}} b
+ * @param {{x:number,y:number}} c
+ */
+function pointInTriangle(p, a, b, c) {
+  const v0x = c.x - a.x;
+  const v0y = c.y - a.y;
+  const v1x = b.x - a.x;
+  const v1y = b.y - a.y;
+  const v2x = p.x - a.x;
+  const v2y = p.y - a.y;
+
+  const den = v0x * v1y - v1x * v0y;
+  if (Math.abs(den) < 1e-8) return false;
+
+  const u = (v2x * v1y - v1x * v2y) / den;
+  const v = (v0x * v2y - v2x * v0y) / den;
+  return u >= 0 && v >= 0 && u + v <= 1;
+}
+
+/**
+ * Point in convex quad (two triangles).
+ * @param {{x:number,y:number}} p
+ * @param {{x:number,y:number}[]} quad
+ */
+function pointInQuad(p, quad) {
+  return (
+    pointInTriangle(p, quad[0], quad[1], quad[2]) ||
+    pointInTriangle(p, quad[0], quad[2], quad[3])
+  );
+}
+
+/**
+ * Barycentric interpolate world position on a quad from screen hit.
+ * Approximation: split into triangles, find which contains p, interpolate.
+ * @param {{x:number,y:number}} p
+ * @param {{x:number,y:number,z:number}[]} screenQuad projected verts with z
+ * @param {Vec3[]} worldQuad world-space verts matching screenQuad
+ * @returns {Vec3 | null}
+ */
+function interpolateOnQuad(p, screenQuad, worldQuad) {
+  const tris = [
+    [0, 1, 2],
+    [0, 2, 3],
+  ];
+
+  for (const [i0, i1, i2] of tris) {
+    const a = screenQuad[i0];
+    const b = screenQuad[i1];
+    const c = screenQuad[i2];
+    if (!pointInTriangle(p, a, b, c)) continue;
+
+    const v0x = c.x - a.x;
+    const v0y = c.y - a.y;
+    const v1x = b.x - a.x;
+    const v1y = b.y - a.y;
+    const v2x = p.x - a.x;
+    const v2y = p.y - a.y;
+    const den = v0x * v1y - v1x * v0y;
+    if (Math.abs(den) < 1e-8) continue;
+
+    const u = (v2x * v1y - v1x * v2y) / den;
+    const v = (v0x * v2y - v2x * v0y) / den;
+    const w = 1 - u - v;
+
+    const wa = worldQuad[i0];
+    const wb = worldQuad[i1];
+    const wc = worldQuad[i2];
+    return {
+      x: w * wa.x + v * wb.x + u * wc.x,
+      y: w * wa.y + v * wb.y + u * wc.y,
+      z: w * wa.z + v * wb.z + u * wc.z,
+    };
+  }
+  return null;
+}
+
+
+/* --- js/cube.js --- */
+
+const HALF = 1;
+
+/** Local cube corners (order matters for faces) */
+const LOCAL = [
+  vec3(-HALF, -HALF, -HALF),
+  vec3(HALF, -HALF, -HALF),
+  vec3(HALF, HALF, -HALF),
+  vec3(-HALF, HALF, -HALF),
+  vec3(-HALF, -HALF, HALF),
+  vec3(HALF, -HALF, HALF),
+  vec3(HALF, HALF, HALF),
+  vec3(-HALF, HALF, HALF),
+];
+
+const FACES = [
+  { idx: [0, 1, 2, 3], color: [40, 70, 90, 0.55] },
+  { idx: [5, 4, 7, 6], color: [45, 95, 110, 0.55] },
+  { idx: [4, 0, 3, 7], color: [30, 55, 75, 0.5] },
+  { idx: [1, 5, 6, 2], color: [50, 110, 125, 0.55] },
+  { idx: [3, 2, 6, 7], color: [55, 120, 140, 0.58] },
+  { idx: [4, 5, 1, 0], color: [25, 45, 60, 0.5] },
+];
+
+const EDGES = [
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 0],
+  [4, 5],
+  [5, 6],
+  [6, 7],
+  [7, 4],
+  [0, 4],
+  [1, 5],
+  [2, 6],
+  [3, 7],
+];
+
+/** Inverse of rotateXYZ (X→Y→Z): apply -Z → -Y → -X */
+function inverseRotateXYZ(v, ax, ay, az) {
+  let { x, y, z } = v;
+
+  const cz = Math.cos(-az);
+  const sz = Math.sin(-az);
+  let x1 = x * cz - y * sz;
+  let y1 = x * sz + y * cz;
+  x = x1;
+  y = y1;
+
+  const cx = Math.cos(-ay);
+  const sx = Math.sin(-ay);
+  x1 = x * cx + z * sx;
+  let z1 = -x * sx + z * cx;
+  x = x1;
+  z = z1;
+
+  const cy = Math.cos(-ax);
+  const sy = Math.sin(-ax);
+  y1 = y * cy - z * sy;
+  z1 = y * sy + z * cy;
+
+  return { x, y: y1, z: z1 };
+}
+
+class Cube {
+  constructor() {
+    this.rotX = 0.35;
+    this.rotY = 0.55;
+    this.rotZ = 0.12;
+    this.spinX = 0.55;
+    this.spinY = 0.85;
+    this.spinZ = 0.28;
+
+    this.recoil = vec3(0, 0, 0);
+    this.scalePunch = 0;
+    this.size = 1;
+
+    /** @type {{ local: {x:number,y:number,z:number}, life: number, maxLife: number } | null} */
+    this.hitMarker = null;
+
+    this._world = LOCAL.map(() => vec3());
+    this._projected = LOCAL.map(() => ({ x: 0, y: 0, z: 0 }));
+    this._faceCache = [];
+  }
+
+  /** @param {number} dt */
+  update(dt) {
+    this.rotX += this.spinX * dt;
+    this.rotY += this.spinY * dt;
+    this.rotZ += this.spinZ * dt;
+
+    this.spinX += Math.sin(performance.now() * 0.0004) * 0.02 * dt;
+    this.spinY += Math.cos(performance.now() * 0.00055) * 0.025 * dt;
+
+    // Soft clamp spin so it doesn't explode over time
+    this.spinX += (0.55 - this.spinX) * Math.min(1, 0.4 * dt);
+    this.spinY += (0.85 - this.spinY) * Math.min(1, 0.4 * dt);
+    this.spinZ += (0.28 - this.spinZ) * Math.min(1, 0.4 * dt);
+
+    this.recoil.x *= Math.exp(-8 * dt);
+    this.recoil.y *= Math.exp(-8 * dt);
+    this.recoil.z *= Math.exp(-8 * dt);
+    this.scalePunch *= Math.exp(-10 * dt);
+
+    if (this.hitMarker) {
+      this.hitMarker.life -= dt;
+      if (this.hitMarker.life <= 0) this.hitMarker = null;
+    }
+  }
+
+  /**
+   * @param {{x:number,y:number,z:number}} normal
+   * @param {number} strength
+   */
+  applyRecoil(normal, strength = 0.22) {
+    this.recoil.x += normal.x * strength;
+    this.recoil.y += normal.y * strength;
+    this.recoil.z += normal.z * strength;
+    this.scalePunch = Math.min(0.18, this.scalePunch + 0.12);
+    this.spinX += (Math.random() - 0.5) * 0.8;
+    this.spinY += (Math.random() - 0.5) * 1.0;
+    this.spinZ += (Math.random() - 0.5) * 0.5;
+  }
+
+  /**
+   * @param {number} cx
+   * @param {number} cy
+   * @param {number} scalePx
+   */
+  rebuild(cx, cy, scalePx) {
+    const s = this.size * (1 + this.scalePunch);
+    const rx = this.rotX;
+    const ry = this.rotY;
+    const rz = this.rotZ;
+
+    for (let i = 0; i < LOCAL.length; i++) {
+      const rotated = rotateXYZ(scale(LOCAL[i], s), rx, ry, rz);
+      const world = add(rotated, this.recoil);
+      this._world[i] = world;
+      this._projected[i] = project(world, cx, cy, scalePx);
+    }
+
+    this._faceCache = FACES.map((face) => {
+      const worldVerts = face.idx.map((i) => this._world[i]);
+      const screenVerts = face.idx.map((i) => this._projected[i]);
+      const avgZ =
+        (worldVerts[0].z +
+          worldVerts[1].z +
+          worldVerts[2].z +
+          worldVerts[3].z) /
+        4;
+
+      const e1 = {
+        x: worldVerts[1].x - worldVerts[0].x,
+        y: worldVerts[1].y - worldVerts[0].y,
+        z: worldVerts[1].z - worldVerts[0].z,
+      };
+      const e2 = {
+        x: worldVerts[2].x - worldVerts[0].x,
+        y: worldVerts[2].y - worldVerts[0].y,
+        z: worldVerts[2].z - worldVerts[0].z,
+      };
+      const normal = normalize({
+        x: e1.y * e2.z - e1.z * e2.y,
+        y: e1.z * e2.x - e1.x * e2.z,
+        z: e1.x * e2.y - e1.y * e2.x,
+      });
+
+      return { color: face.color, worldVerts, screenVerts, avgZ, normal };
+    });
+
+    this._faceCache.sort((a, b) => a.avgZ - b.avgZ);
+  }
+
+  /**
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} cx
+   * @param {number} cy
+   * @param {number} scalePx
+   */
+  draw(ctx, cx, cy, scalePx) {
+    for (const face of this._faceCache) {
+      const [r, g, b, a] = face.color;
+      const depthFade = 0.55 + 0.45 * (1 - (face.avgZ + 2) / 4);
+      ctx.beginPath();
+      const sv = face.screenVerts;
+      ctx.moveTo(sv[0].x, sv[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(sv[i].x, sv[i].y);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a * Math.max(0.35, depthFade)})`;
+      ctx.fill();
+    }
+
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = "rgba(200, 232, 245, 0.85)";
+    ctx.shadowColor = "rgba(61, 231, 255, 0.45)";
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    for (const [a, b] of EDGES) {
+      const pa = this._projected[a];
+      const pb = this._projected[b];
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "rgba(61, 231, 255, 0.9)";
+    for (const p of this._projected) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    this._drawHitMarker(ctx, cx, cy, scalePx);
+  }
+
+  /**
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} cx
+   * @param {number} cy
+   * @param {number} scalePx
+   */
+  _drawHitMarker(ctx, cx, cy, scalePx) {
+    if (!this.hitMarker) return;
+    const t = this.hitMarker.life / this.hitMarker.maxLife;
+    const s = this.size * (1 + this.scalePunch);
+    const world = add(
+      rotateXYZ(scale(this.hitMarker.local, s), this.rotX, this.rotY, this.rotZ),
+      this.recoil
+    );
+    const screen = project(world, cx, cy, scalePx);
+    const { x, y } = screen;
+    const r = 6 + (1 - t) * 18;
+
+    ctx.save();
+    ctx.globalAlpha = t;
+    ctx.strokeStyle = "#ffb347";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#3de7ff";
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#ff7a1a";
+    ctx.lineWidth = 1.5;
+    const tick = 10 + (1 - t) * 8;
+    ctx.beginPath();
+    ctx.moveTo(x - tick, y);
+    ctx.lineTo(x - 4, y);
+    ctx.moveTo(x + 4, y);
+    ctx.lineTo(x + tick, y);
+    ctx.moveTo(x, y - tick);
+    ctx.lineTo(x, y - 4);
+    ctx.moveTo(x, y + 4);
+    ctx.lineTo(x, y + tick);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * @param {number} px
+   * @param {number} py
+   * @param {number} cx
+   * @param {number} cy
+   * @param {number} scalePx
+   */
+  hitTest(px, py, cx, cy, scalePx) {
+    const point = { x: px, y: py };
+    for (let i = this._faceCache.length - 1; i >= 0; i--) {
+      const face = this._faceCache[i];
+      if (!pointInQuad(point, face.screenVerts)) continue;
+
+      const world = interpolateOnQuad(point, face.screenVerts, face.worldVerts);
+      if (!world) continue;
+
+      const screen = project(world, cx, cy, scalePx);
+      return {
+        screen: { x: screen.x, y: screen.y },
+        world,
+        normal: face.normal,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Store hit in cube-local space so the marker rides the surface.
+   * @param {{x:number,y:number,z:number}} world
+   */
+  setHitMarker(world) {
+    const s = this.size * (1 + this.scalePunch) || 1;
+    const untranslated = sub(world, this.recoil);
+    const unrotated = inverseRotateXYZ(untranslated, this.rotX, this.rotY, this.rotZ);
+    this.hitMarker = {
+      local: scale(unrotated, 1 / s),
+      life: 0.65,
+      maxLife: 0.65,
+    };
+  }
+}
+
+
+/* --- js/particles.js --- */
+const POOL_SIZE = 280;
+
+/**
+ * @typedef {object} Particle
+ * @property {boolean} alive
+ * @property {number} x
+ * @property {number} y
+ * @property {number} vx
+ * @property {number} vy
+ * @property {number} life
+ * @property {number} maxLife
+ * @property {number} size
+ * @property {number} rotation
+ * @property {number} spin
+ * @property {'shard'|'spark'|'ring'} kind
+ * @property {string} color
+ */
+
+function createParticle() {
+  return {
+    alive: false,
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    life: 0,
+    maxLife: 1,
+    size: 4,
+    rotation: 0,
+    spin: 0,
+    kind: /** @type {'shard'|'spark'|'ring'} */ ("shard"),
+    color: "#3de7ff",
+  };
+}
+
+const CYANS = ["#3de7ff", "#7af0ff", "#1a8fa0", "#c8e8f5"];
+const AMBERS = ["#ffb347", "#ff7a1a", "#ffd28a", "#ff9f4a"];
+
+class ParticleSystem {
+  constructor() {
+    /** @type {Particle[]} */
+    this.pool = Array.from({ length: POOL_SIZE }, createParticle);
+  }
+
+  /** @returns {Particle | null} */
+  _alloc() {
+    for (const p of this.pool) {
+      if (!p.alive) return p;
+    }
+    return null;
+  }
+
+  /**
+   * Radial geometric burst at screen point.
+   * @param {number} x
+   * @param {number} y
+   * @param {{ intense?: boolean }} [opts]
+   */
+  burst(x, y, opts = {}) {
+    const intense = opts.intense === true;
+    const count = intense ? 42 : 22;
+    const speed = intense ? 520 : 340;
+
+    for (let i = 0; i < count; i++) {
+      const p = this._alloc();
+      if (!p) break;
+      const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.4;
+      const mag = speed * (0.35 + Math.random() * 0.75);
+      const isSpark = Math.random() > 0.55;
+      const palette = intense
+        ? Math.random() > 0.4
+          ? AMBERS
+          : CYANS
+        : Math.random() > 0.65
+          ? AMBERS
+          : CYANS;
+
+      p.alive = true;
+      p.x = x;
+      p.y = y;
+      p.vx = Math.cos(angle) * mag;
+      p.vy = Math.sin(angle) * mag;
+      p.life = intense ? 0.55 + Math.random() * 0.35 : 0.35 + Math.random() * 0.3;
+      p.maxLife = p.life;
+      p.size = isSpark ? 2 + Math.random() * 2.5 : 4 + Math.random() * 7;
+      p.rotation = Math.random() * Math.PI;
+      p.spin = (Math.random() - 0.5) * 12;
+      p.kind = isSpark ? "spark" : "shard";
+      p.color = palette[(Math.random() * palette.length) | 0];
+    }
+
+    // Ripple ring
+    const ring = this._alloc();
+    if (ring) {
+      ring.alive = true;
+      ring.x = x;
+      ring.y = y;
+      ring.vx = 0;
+      ring.vy = 0;
+      ring.life = intense ? 0.45 : 0.3;
+      ring.maxLife = ring.life;
+      ring.size = intense ? 18 : 10;
+      ring.rotation = 0;
+      ring.spin = 0;
+      ring.kind = "ring";
+      ring.color = intense ? "#ffb347" : "#3de7ff";
+    }
+  }
+
+  /**
+   * @param {number} dt
+   */
+  update(dt) {
+    const drag = Math.exp(-3.2 * dt);
+    const gravity = 420;
+
+    for (const p of this.pool) {
+      if (!p.alive) continue;
+      p.life -= dt;
+      if (p.life <= 0) {
+        p.alive = false;
+        continue;
+      }
+
+      if (p.kind === "ring") {
+        p.size += (p.maxLife > 0.4 ? 280 : 200) * dt;
+        continue;
+      }
+
+      p.vx *= drag;
+      p.vy = p.vy * drag + gravity * dt * 0.35;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.rotation += p.spin * dt;
+    }
+  }
+
+  /**
+   * @param {CanvasRenderingContext2D} ctx
+   */
+  draw(ctx) {
+    for (const p of this.pool) {
+      if (!p.alive) continue;
+      const t = p.life / p.maxLife;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.globalAlpha = Math.max(0, t);
+
+      if (p.kind === "ring") {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 2 * t;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (p.kind === "spark") {
+        ctx.rotate(p.rotation);
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-p.size * 1.8, 0);
+        ctx.lineTo(p.size * 1.8, 0);
+        ctx.stroke();
+      } else {
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = p.color;
+        const s = p.size * (0.6 + 0.4 * t);
+        ctx.beginPath();
+        ctx.moveTo(0, -s);
+        ctx.lineTo(s * 0.7, 0);
+        ctx.lineTo(0, s * 0.55);
+        ctx.lineTo(-s * 0.7, 0);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }
+}
+
+
+/* --- js/counter.js --- */
+class Counter {
+  /**
+   * @param {HTMLElement} root
+   * @param {HTMLElement} valueEl
+   */
+  constructor(root, valueEl) {
+    this.root = root;
+    this.valueEl = valueEl;
+    this.score = 0;
+    this._bumpTimer = 0;
+  }
+
+  /**
+   * @param {{ hitCube?: boolean }} [meta]
+   */
+  increment(meta = {}) {
+    this.score += 1;
+    this._render(meta.hitCube === true);
+  }
+
+  /**
+   * @param {boolean} hitCube
+   */
+  _render(hitCube) {
+    const next = String(this.score);
+    this.valueEl.innerHTML = "";
+    const span = document.createElement("span");
+    span.className = "digit-flip";
+    span.textContent = next;
+    this.valueEl.appendChild(span);
+
+    this.root.classList.remove("is-bump", "is-hit");
+    // Force reflow so animation restarts
+    void this.root.offsetWidth;
+    this.root.classList.add("is-bump");
+    if (hitCube) this.root.classList.add("is-hit");
+
+    clearTimeout(this._bumpTimer);
+    this._bumpTimer = window.setTimeout(() => {
+      this.root.classList.remove("is-bump", "is-hit");
+    }, 420);
+  }
+}
+
+
+/* --- js/main.js --- */
+
+
+
+const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("stage"));
+const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d", {
+  alpha: false,
+}));
+
+const counterRoot = /** @type {HTMLElement} */ (document.getElementById("counter"));
+const counterValue = /** @type {HTMLElement} */ (document.getElementById("counter-value"));
+
+const cube = new Cube();
+const particles = new ParticleSystem();
+const counter = new Counter(counterRoot, counterValue);
+
+let width = 0;
+let height = 0;
+let dpr = 1;
+let cx = 0;
+let cy = 0;
+let cubeScale = 120;
+let lastTime = performance.now();
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = Math.floor(width * dpr);
+  canvas.height = Math.floor(height * dpr);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = width * 0.5;
+  cy = height * 0.48;
+  cubeScale = Math.min(width, height) * 0.18;
+}
+
+/**
+ * Atmosphere: radial wash + perspective grid.
+ * @param {CanvasRenderingContext2D} c
+ */
+function drawBackground(c) {
+  const g = c.createRadialGradient(cx, cy, 40, cx, cy, Math.max(width, height) * 0.75);
+  g.addColorStop(0, "#162030");
+  g.addColorStop(0.45, "#0e1520");
+  g.addColorStop(1, "#0a0e14");
+  c.fillStyle = g;
+  c.fillRect(0, 0, width, height);
+
+  // Horizon grid
+  c.save();
+  c.lineWidth = 1;
+  const vanishingY = height * 0.38;
+  const rows = 16;
+  for (let i = 1; i <= rows; i++) {
+    const t = i / rows;
+    const y = vanishingY + (height - vanishingY) * (t * t);
+    c.strokeStyle = `rgba(61, 231, 255, ${0.04 + 0.1 * (1 - t)})`;
+    c.beginPath();
+    c.moveTo(0, y);
+    c.lineTo(width, y);
+    c.stroke();
+  }
+
+  const cols = 20;
+  for (let i = 0; i <= cols; i++) {
+    const u = i / cols;
+    const xTop = cx + (u - 0.5) * width * 0.12;
+    const xBot = cx + (u - 0.5) * width * 1.7;
+    c.strokeStyle = "rgba(61, 231, 255, 0.07)";
+    c.beginPath();
+    c.moveTo(xTop, vanishingY);
+    c.lineTo(xBot, height);
+    c.stroke();
+  }
+  c.restore();
+
+  // Soft vignette
+  const vig = c.createRadialGradient(cx, cy, Math.min(width, height) * 0.25, cx, cy, Math.max(width, height) * 0.7);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(1, "rgba(0,0,0,0.45)");
+  c.fillStyle = vig;
+  c.fillRect(0, 0, width, height);
+}
+
+/**
+ * @param {PointerEvent} e
+ */
+function onPointerDown(e) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  cube.rebuild(cx, cy, cubeScale);
+  const hit = cube.hitTest(x, y, cx, cy, cubeScale);
+
+  if (hit) {
+    cube.setHitMarker(hit.world);
+    cube.applyRecoil(hit.normal, 0.28);
+    particles.burst(hit.screen.x, hit.screen.y, { intense: true });
+    counter.increment({ hitCube: true });
+  } else {
+    particles.burst(x, y, { intense: false });
+    counter.increment({ hitCube: false });
+  }
+}
+
+/**
+ * @param {number} now
+ */
+function frame(now) {
+  const dt = Math.min(0.033, (now - lastTime) / 1000);
+  lastTime = now;
+
+  cube.update(dt);
+  particles.update(dt);
+
+  drawBackground(ctx);
+  cube.rebuild(cx, cy, cubeScale);
+  cube.draw(ctx, cx, cy, cubeScale);
+  particles.draw(ctx);
+
+  requestAnimationFrame(frame);
+}
+
+resize();
+window.addEventListener("resize", resize);
+canvas.addEventListener("pointerdown", onPointerDown);
+requestAnimationFrame(frame);
+
+  </script>
+</body>
+</html>

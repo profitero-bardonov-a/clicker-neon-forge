@@ -1,0 +1,148 @@
+#!/usr/bin/env node
+/**
+ * Local smoke check before Netlify deploy.
+ * Usage: node scripts/check-local.mjs
+ */
+import { createServer } from "node:http";
+import { readFileSync, existsSync, statSync } from "node:fs";
+import { extname, join, normalize } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = join(fileURLToPath(new URL("..", import.meta.url)));
+const required = [
+  "index.html",
+  "css/styles.css",
+  "js/main.js",
+  "js/i18n.js",
+  "js/menu.js",
+  "js/auth.js",
+  "js/leaderboard.js",
+  "js/leaderboard-stubs.js",
+  "js/score-store.js",
+  "js/analytics.js",
+  "js/effects-config.js",
+  "js/effects.js",
+  "js/float-texts.js",
+  "assets/effect-photo-a.jpg",
+  "assets/effect-photo-b.jpg",
+  "netlify/functions/score.mjs",
+  "netlify/functions/leaderboard.mjs",
+  "netlify.toml",
+  "package.json",
+];
+
+const mime = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
+function assertFiles() {
+  const missing = required.filter((rel) => !existsSync(join(root, rel)));
+  if (missing.length) {
+    throw new Error(`Missing files:\n- ${missing.join("\n- ")}`);
+  }
+}
+
+function assertHtml() {
+  const html = readFileSync(join(root, "index.html"), "utf8");
+  for (const needle of [
+    'id="login-btn"',
+    'id="menu-btn"',
+    'id="app-menu"',
+    'id="locale-list"',
+    'id="logout-modal"',
+    'id="leaderboard-toggle"',
+    'id="effect-rim"',
+    'id="tap-hint"',
+    'src="js/main.js"',
+  ]) {
+    if (!html.includes(needle)) {
+      throw new Error(`index.html missing expected marker: ${needle}`);
+    }
+  }
+}
+
+function assertI18n() {
+  const src = readFileSync(join(root, "js/i18n.js"), "utf8");
+  if (!src.includes("detectSystemLocale")) {
+    throw new Error("i18n.js must auto-detect system locale");
+  }
+  if (!src.includes("MANUAL_KEY")) {
+    throw new Error("i18n.js must distinguish manual locale choice");
+  }
+  if (!src.includes("tapHint")) {
+    throw new Error("i18n.js must include tapHint for first-session coach mark");
+  }
+}
+
+function assertEffectsGate() {
+  const src = readFileSync(join(root, "js/effects.js"), "utf8");
+  if (!src.includes("armSchedule")) {
+    throw new Error("effects.js must expose armSchedule for first-click gate");
+  }
+  const main = readFileSync(join(root, "js/main.js"), "utf8");
+  if (!main.includes("armSchedule") || !main.includes("first_click")) {
+    throw new Error("main.js must gate effects and track first_click");
+  }
+}
+
+async function serveAndFetch() {
+  const server = createServer((req, res) => {
+    try {
+      const urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
+      const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\//, "");
+      const filePath = normalize(join(root, rel));
+      if (!filePath.startsWith(root) || !existsSync(filePath) || !statSync(filePath).isFile()) {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
+      const body = readFileSync(filePath);
+      res.writeHead(200, { "Content-Type": mime[extname(filePath)] || "application/octet-stream" });
+      res.end(body);
+    } catch (err) {
+      res.writeHead(500);
+      res.end(String(err));
+    }
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = /** @type {import('node:net').AddressInfo} */ (server.address());
+  const base = `http://127.0.0.1:${port}`;
+
+  try {
+    const home = await fetch(`${base}/`);
+    if (!home.ok) throw new Error(`GET / => ${home.status}`);
+    const html = await home.text();
+    if (!html.includes("NEON FORGE")) throw new Error("Home page markup unexpected");
+
+    for (const path of ["/css/styles.css", "/js/main.js", "/js/i18n.js", "/js/menu.js"]) {
+      const res = await fetch(`${base}${path}`);
+      if (!res.ok) throw new Error(`GET ${path} => ${res.status}`);
+    }
+  } finally {
+    server.close();
+  }
+}
+
+async function main() {
+  assertFiles();
+  assertHtml();
+  assertI18n();
+  assertEffectsGate();
+  await serveAndFetch();
+  console.log("Local check passed");
+}
+
+main().catch((err) => {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+});
