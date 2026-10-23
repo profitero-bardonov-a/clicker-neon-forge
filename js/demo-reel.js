@@ -2,7 +2,8 @@
  * Local ~60s gameplay reel for screen recording (Shorts / Reels).
  * Open with `?demo=1` — no pause, main effects only.
  *
- * QA: `?berserk=1` forces one Berserk chain soon after load (prod-safe verify).
+ * QA: `?berserk=1` forces one Berserk chain soon after load (prod-safe verify;
+ * independent of the every-500 score trigger).
  */
 
 /** @returns {boolean} */

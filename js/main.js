@@ -16,6 +16,7 @@ import { initEffectsTip } from "./onboarding-tip.js";
 import { initEffectTips } from "./effect-tips.js";
 import { initMilestones } from "./milestones.js";
 import { initQuestionGift } from "./question-gift.js";
+import { initBerserkScore } from "./berserk-score.js";
 import { initShop } from "./shop.js";
 import { GameAudio, initSoundToggle } from "./audio.js";
 
@@ -231,6 +232,9 @@ pauseMark.addEventListener("click", (e) => {
   dismissPauseFromIcon();
 });
 
+/** @type {ReturnType<typeof initBerserkScore> | null} */
+let berserkScore = null;
+
 const effects = new EffectRuntime({
   rimEl: /** @type {HTMLElement} */ (document.getElementById("effect-rim")),
   countdownEl: /** @type {HTMLElement} */ (document.getElementById("effect-countdown")),
@@ -241,6 +245,7 @@ const effects = new EffectRuntime({
     document.getElementById("berserk-banner-progress")
   ),
   onEffectStart: (id) => effectTips?.noteEffect(id),
+  onBerserkEnded: () => berserkScore?.onBerserkEnded(),
 });
 effects.start();
 
@@ -335,6 +340,12 @@ const questionGift = initQuestionGift({
 });
 questionGift.syncScore(scores.score);
 
+berserkScore = initBerserkScore({
+  enabled: !isDemoMode(),
+  beginBerserk: () => effects.beginEffect("berserk"),
+});
+berserkScore.syncScore(scores.score);
+
 const shop = initShop({
   root: /** @type {HTMLElement} */ (document.getElementById("forge-shop")),
   listEl: /** @type {HTMLElement} */ (document.getElementById("shop-list")),
@@ -352,6 +363,7 @@ const shop = initShop({
     counter.setScore(scores.score, { animate: true });
     milestones.noteScore(scores.score);
     questionGift.noteScore(scores.score);
+    berserkScore?.noteScore(scores.score);
   },
   onClose: () => effectTips?.resume(),
 });
@@ -420,6 +432,7 @@ const auth = await initAuth({
       counter.setScore(scores.score, { animate: false });
       milestones.syncScore(scores.score);
       questionGift.syncScore(scores.score);
+      berserkScore?.syncScore(scores.score);
       void leaderboard.refresh();
     } else {
       scores.detachUser();
@@ -532,6 +545,7 @@ function applyDelta(delta, x, y, meta = {}) {
   });
   milestones.noteScore(scores.score);
   questionGift.noteScore(scores.score);
+  berserkScore?.noteScore(scores.score);
   if (meta.fromCounter) {
     floats.spawnFromCounter(counterRoot, delta);
   } else {
@@ -771,7 +785,7 @@ if (isDemoMode()) {
     layoutState,
   });
 } else if (isBerserkDemo()) {
-  // Prod/local visual QA: force one Berserk chain without changing schedule rarity.
+  // Prod/local visual QA: force one Berserk chain (independent of scoreEvery).
   effects.autoSchedule = false;
   window.setTimeout(() => {
     effects.beginEffect("berserk");

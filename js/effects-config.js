@@ -240,8 +240,11 @@ export const EFFECTS_CONFIG = {
     },
 
     /**
-     * Berserk (meta): rare chain of N random non-meta effects back-to-back.
-     * Not playable as a standalone mechanic — starts the chain immediately.
+     * Berserk (meta): chain of N random non-meta effects back-to-back.
+     * Primary trigger: score crosses every `scoreEvery` clicks (500, 1000, …)
+     * via `berserk-score.js` — interrupts the current effect for a clear handoff.
+     * `scheduleWeight: 0` disables random schedule draws (deterministic only).
+     * QA `?berserk=1` still force-triggers one chain after load.
      */
     berserk: {
       polarity: "positive",
@@ -251,8 +254,10 @@ export const EFFECTS_CONFIG = {
       enabled: true,
       meta: true,
       chainCount: 5,
-      /** Relative schedule weight vs default 1 — keep rare for first session. */
-      scheduleWeight: 0.14,
+      /** Fire once per this many score points (first crossing of each bucket). */
+      scoreEvery: 500,
+      /** Off — score thresholds are the primary trigger (was 0.14 random). */
+      scheduleWeight: 0,
       linkDurationMinMs: 4_000,
       linkDurationMaxMs: 6_000,
     },

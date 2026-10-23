@@ -89,6 +89,7 @@ export class EffectRuntime {
    *   berserkTitleEl?: HTMLElement | null,
    *   berserkProgressEl?: HTMLElement | null,
    *   onEffectStart?: (id: string) => void,
+   *   onBerserkEnded?: () => void,
    * }} ui
    */
   constructor(ui) {
@@ -99,6 +100,7 @@ export class EffectRuntime {
     this.berserkTitleEl = ui.berserkTitleEl || null;
     this.berserkProgressEl = ui.berserkProgressEl || null;
     this.onEffectStart = ui.onEffectStart || null;
+    this.onBerserkEnded = ui.onBerserkEnded || null;
 
     /** @type {ActiveEffect | null} */
     this.active = null;
@@ -367,7 +369,10 @@ export class EffectRuntime {
     }
 
     // Meta berserk: kick off the chain instead of a normal timed effect.
+    // Abort any in-flight chain first so score-threshold restarts replace cleanly.
     if ("meta" in def && def.meta) {
+      this._berserkLeft = 0;
+      this._berserkTotal = 0;
       if (this.active) this.endEffect({ reschedule: false });
       this._startBerserk();
       return;
@@ -504,7 +509,9 @@ export class EffectRuntime {
       this._beginBerserkLink();
       return;
     }
+    const finishedBerserk = this._berserkTotal > 0;
     this._berserkTotal = 0;
+    if (finishedBerserk) this.onBerserkEnded?.();
     if (reschedule && this.autoSchedule) this._scheduleNext();
   }
 
