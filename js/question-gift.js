@@ -7,7 +7,9 @@ import { trackEvent } from "./analytics.js";
 export const QUESTION_GIFT_STEP = 1000;
 export const QUESTION_GIFT_REWARD = 500;
 export const QUESTION_GIFT_STORAGE_KEY = "neon-forge-question-gifts";
-const LIFE_MS = 6500;
+/** Screen-cross lifetime; shorter = faster. Was 6500 (~1×); 2000 ≈ 3.25×. */
+export const QUESTION_GIFT_LIFE_MS = 2000;
+const LIFE_MS = QUESTION_GIFT_LIFE_MS;
 const SIZE = 56;
 
 /**
