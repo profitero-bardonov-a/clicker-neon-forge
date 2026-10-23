@@ -34,7 +34,8 @@ export default async (req) => {
 
   const db = getDatabase();
   // Hygiene: hide never-engaged (0) and idle-drain negatives from the public top.
-  const [rows, countRows] = await Promise.all([
+  // total = engaged scorers (clicks≥1); totalPlayers = all score rows (incl. 0/neg).
+  const [rows, countRows, allCountRows] = await Promise.all([
     db.sql`
       SELECT
         display_name,
@@ -51,14 +52,20 @@ export default async (req) => {
       FROM scores
       WHERE clicks >= ${MIN_PUBLIC_CLICKS}
     `,
+    db.sql`
+      SELECT COUNT(*)::int AS total
+      FROM scores
+    `,
   ]);
 
   const total = Number(countRows[0]?.total ?? 0);
+  const totalPlayers = Number(allCountRows[0]?.total ?? 0);
 
   return Response.json(
     {
       limit: LIMIT,
       total,
+      totalPlayers,
       leaders: rows.map((row, index) => {
         const rawAvatar = typeof row.avatar_url === "string" ? row.avatar_url : "";
         // Hide URLs truncated by the old 500-char save path (broken lh3 links).
