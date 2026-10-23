@@ -33,6 +33,9 @@ const required = [
   "js/float-texts.js",
   "assets/effect-photo-a.jpg",
   "assets/effect-photo-b.jpg",
+  "assets/audio/synthwave-house-loop.ogg",
+  "assets/audio/ATTRIBUTION.md",
+  "assets/audio/LICENSE",
   "netlify/functions/score.mjs",
   "netlify/functions/leaderboard.mjs",
   "netlify.toml",
@@ -50,6 +53,8 @@ const mime = {
   ".jpeg": "image/jpeg",
   ".png": "image/png",
   ".webp": "image/webp",
+  ".ogg": "audio/ogg",
+  ".mp3": "audio/mpeg",
 };
 
 function assertFiles() {
@@ -120,6 +125,8 @@ function assertI18n() {
     "soundLabel",
     "soundOn",
     "soundOff",
+    "aboutCreditsTitle",
+    "aboutCredits",
   ]) {
     const count = src.split(key).length - 1;
     if (count < 5) {
@@ -133,7 +140,9 @@ async function assertAudio() {
     SOUND_MUTED_KEY,
     MASTER_GAIN,
     BED_BUS_GAIN,
+    BED_SAMPLE_GAIN,
     CLICK_PEAK_GAIN,
+    BED_URL,
     GameAudio,
     readSoundMuted,
     writeSoundMuted,
@@ -145,10 +154,28 @@ async function assertAudio() {
     throw new Error(`MASTER_GAIN out of expected audible range (got ${MASTER_GAIN})`);
   }
   if (!(BED_BUS_GAIN >= 2.2 && BED_BUS_GAIN <= 3.2)) {
-    throw new Error(`BED_BUS_GAIN must stay ~2–3× louder bed (got ${BED_BUS_GAIN})`);
+    throw new Error(`BED_BUS_GAIN must stay ~2–3× for menu-duck bus (got ${BED_BUS_GAIN})`);
+  }
+  if (!(BED_SAMPLE_GAIN > 0.2 && BED_SAMPLE_GAIN < 0.7)) {
+    throw new Error(`BED_SAMPLE_GAIN must keep OGG bed audible without crushing clicks (got ${BED_SAMPLE_GAIN})`);
   }
   if (!(CLICK_PEAK_GAIN >= 0.28 && CLICK_PEAK_GAIN <= 0.45)) {
     throw new Error(`CLICK_PEAK_GAIN should stay audible vs louder bed (got ${CLICK_PEAK_GAIN})`);
+  }
+  if (BED_URL !== "assets/audio/synthwave-house-loop.ogg") {
+    throw new Error(`BED_URL must point at committed loop asset (got ${BED_URL})`);
+  }
+  const bedStat = statSync(join(root, BED_URL));
+  if (!(bedStat.size > 50_000 && bedStat.size < 2_200_000)) {
+    throw new Error(`bed OGG size out of expected ~1–2 MB band (got ${bedStat.size} bytes)`);
+  }
+  const attr = readFileSync(join(root, "assets/audio/ATTRIBUTION.md"), "utf8");
+  if (!attr.includes("Fupi") || !attr.includes("CC0") || !attr.includes("opengameart.org")) {
+    throw new Error("assets/audio/ATTRIBUTION.md must name author, CC0, and source URL");
+  }
+  const lic = readFileSync(join(root, "assets/audio/LICENSE"), "utf8");
+  if (!lic.includes("CC0 1.0")) {
+    throw new Error("assets/audio/LICENSE must include CC0 1.0 text");
   }
 
   const store = new Map();
@@ -209,13 +236,26 @@ async function assertAudio() {
   }
   const audioSrc = readFileSync(join(root, "js/audio.js"), "utf8");
   if (!audioSrc.includes("CC0") && !audioSrc.includes("public domain")) {
-    throw new Error("audio.js must document procedural license");
+    throw new Error("audio.js must document bed/engine license (CC0 / public domain)");
   }
   if (!audioSrc.includes("AudioContext")) {
     throw new Error("audio must use Web Audio (no paid SaaS)");
   }
+  if (!audioSrc.includes("playbackRate")) {
+    throw new Error("music bed must drive intensity via playbackRate");
+  }
+  if (!audioSrc.includes("decodeAudioData") || !audioSrc.includes("createBufferSource")) {
+    throw new Error("music bed must decode + loop via Web Audio BufferSource");
+  }
+  if (audioSrc.includes("_emitPulse") || audioSrc.includes("BASS_NOTES")) {
+    throw new Error("procedural oscillator pulse bed must not remain the main music");
+  }
   if (!audioSrc.includes("setBedPaused")) {
     throw new Error("audio.js must expose setBedPaused for menu freeze");
+  }
+  const readme = readFileSync(join(root, "README.md"), "utf8");
+  if (!readme.includes("Synthwave House Loop") || !readme.includes("Fupi") || !readme.includes("CC0")) {
+    throw new Error("README must credit Synthwave House Loop / Fupi / CC0");
   }
 }
 

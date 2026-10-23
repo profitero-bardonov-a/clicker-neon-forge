@@ -61,6 +61,9 @@ const MESSAGES = {
       "Timed chaotic effects — multipliers, combos, lottery twins, and traps — so every run feels different, plus a live leaders board.",
     aboutFaq5Q: "Which languages are supported?",
     aboutFaq5A: "English, Russian, Spanish, German, and French.",
+    aboutCreditsTitle: "Credits",
+    aboutCredits:
+      "Music bed: Synthwave House Loop by Fupi (CC0 1.0) — opengameart.org/content/synthwave-house-loop. Click sounds are original procedural audio.",
     canvasLabel: "Clicker canvas",
     leaders: "LEADERS",
     leadersExpand: "Expand leaders",
@@ -198,6 +201,9 @@ const MESSAGES = {
       "Случайные эффекты по таймеру — множители, комбо, лотерейные кубы и ловушки — плюс живая таблица лидеров.",
     aboutFaq5Q: "Какие языки есть?",
     aboutFaq5A: "Английский, русский, испанский, немецкий и французский.",
+    aboutCreditsTitle: "Благодарности",
+    aboutCredits:
+      "Музыка: Synthwave House Loop — Fupi (CC0 1.0) — opengameart.org/content/synthwave-house-loop. Клики — оригинальный процедурный звук.",
     canvasLabel: "Холст кликера",
     leaders: "ЛИДЕРЫ",
     leadersExpand: "Раскрыть лидеров",
@@ -335,6 +341,9 @@ const MESSAGES = {
       "Efectos caóticos a tiempo — multiplicadores, combos, lotería gemela y trampas — más una tabla de líderes en vivo.",
     aboutFaq5Q: "¿Qué idiomas hay?",
     aboutFaq5A: "Inglés, ruso, español, alemán y francés.",
+    aboutCreditsTitle: "Créditos",
+    aboutCredits:
+      "Música: Synthwave House Loop de Fupi (CC0 1.0) — opengameart.org/content/synthwave-house-loop. Los clics son audio procedural original.",
     canvasLabel: "Lienzo del clicker",
     leaders: "LÍDERES",
     leadersExpand: "Abrir líderes",
@@ -472,6 +481,9 @@ const MESSAGES = {
       "Zeitlich begrenzte chaotische Effekte — Multiplikatoren, Combos, Lotterie-Zwillinge und Fallen — plus eine live Bestenliste.",
     aboutFaq5Q: "Welche Sprachen gibt es?",
     aboutFaq5A: "Englisch, Russisch, Spanisch, Deutsch und Französisch.",
+    aboutCreditsTitle: "Credits",
+    aboutCredits:
+      "Musik: Synthwave House Loop von Fupi (CC0 1.0) — opengameart.org/content/synthwave-house-loop. Klick-Sounds sind originales Prozedural-Audio.",
     canvasLabel: "Clicker-Leinwand",
     leaders: "BESTENLISTE",
     leadersExpand: "Bestenliste öffnen",
@@ -609,6 +621,9 @@ const MESSAGES = {
       "Des effets chaotiques temporisés — multiplicateurs, combos, loterie jumelle et pièges — plus un classement en direct.",
     aboutFaq5Q: "Quelles langues sont prises en charge ?",
     aboutFaq5A: "Anglais, russe, espagnol, allemand et français.",
+    aboutCreditsTitle: "Crédits",
+    aboutCredits:
+      "Musique : Synthwave House Loop par Fupi (CC0 1.0) — opengameart.org/content/synthwave-house-loop. Les clics sont de l’audio procédural original.",
     canvasLabel: "Toile du clicker",
     leaders: "CLASSEMENT",
     leadersExpand: "Ouvrir le classement",

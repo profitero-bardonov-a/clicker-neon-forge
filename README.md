@@ -5,6 +5,13 @@ Static clicker on Netlify (Identity + Functions + Netlify Database).
 **Production:** https://clicker-neon-forge.netlify.app  
 **Site name:** `clicker-neon-forge`
 
+## Music / audio credits
+
+In-game music bed: **Synthwave House Loop** by **Fupi** — [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain).  
+Source: [OpenGameArt](https://opengameart.org/content/synthwave-house-loop).  
+Files: `assets/audio/synthwave-house-loop.ogg`, `assets/audio/ATTRIBUTION.md`, `assets/audio/LICENSE`.  
+Click SFX remain procedural Web Audio (engine code CC0). Mute: menu **Sound / Звук**.
+
 ## Recent UX (leaderboard)
 
 - Expanding the leaders panel **pauses** the game (cube, effects, idle drain, clicks). Collapsing resumes; effect timers are shifted so pause time is not lost.

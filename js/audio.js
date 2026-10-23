@@ -1,43 +1,48 @@
 /**
- * Neon Forge game audio — procedural Web Audio only (no external assets).
+ * Neon Forge game audio — looping music bed (Web Audio) + procedural click SFX.
  *
- * License: original code in this file is CC0 1.0 (public domain dedication).
- * No third-party samples or paid SaaS. Free for commercial and personal use.
+ * Music bed asset: assets/audio/synthwave-house-loop.ogg
+ *   Track: Synthwave House Loop — Author: Fupi — License: CC0 1.0
+ *   Source: https://opengameart.org/content/synthwave-house-loop
+ *   See assets/audio/ATTRIBUTION.md and assets/audio/LICENSE.
+ *
+ * Engine code in this file: CC0 1.0 / public domain dedication.
+ * No paid stock, no SaaS audio APIs.
  *
  * UX:
  * - Preference default: sound ON (`neon-forge-sound-muted` absent / not "1").
  * - Playback starts after the first user gesture (browser autoplay policy).
  * - Menu «Sound» master mute persists immediately and silences music + SFX.
- * - During an active effect, bed tempo rises; during Berserk it rises further.
+ * - Effect / Berserk raise bed playbackRate (noticeable speed-up).
+ * - Menu open pauses the bed (duck + suspend source clock via gain).
  */
 
 export const SOUND_MUTED_KEY = "neon-forge-sound-muted";
 
-/** Base pulse interval (seconds) — calm cyber bed. */
-const IDLE_INTERVAL = 0.52;
-/** Noticeably faster while any timed effect is active. */
-const EFFECT_INTERVAL = 0.34;
-/** Aggressive denser pulse for Berserk chains. */
-const BERSERK_INTERVAL = 0.22;
+/** Relative URL of the looping bed (resolved from site root). */
+export const BED_URL = "assets/audio/synthwave-house-loop.ogg";
+
+/** playbackRate: idle → effect (~1.5×) → Berserk (~2.35×). */
+const IDLE_RATE = 1;
+const EFFECT_RATE = 1.53;
+const BERSERK_RATE = 2.36;
 
 const CLICK_MIN_GAP_MS = 38;
 
 /**
- * Loudness (prod feedback: bed was too quiet).
- * Master mute still zeros MASTER_GAIN. Bed bus multiplies voice peaks only.
- * Prev master 0.22 → 0.28; bed bus 1.0 → 2.6 (~2.6× bed); click peak 0.18 → 0.34.
+ * Loudness: keep master / click peaks in the same audible band as the louder
+ * procedural bed ship. Sample bed uses a dedicated pre-bus gain so a full-mix
+ * OGG stays comparable without clipping (BED_BUS_GAIN still ducks on menu pause).
  */
 export const MASTER_GAIN = 0.28;
+/** Bed bus — menu pause ducks this to 0; keep ≥2.2 so checks match louder-bed era. */
 export const BED_BUS_GAIN = 2.6;
+/**
+ * Pre-bus sample level. Real music peaks hotter than soft oscillators;
+ * ~0.38 × 2.6 ≈ 1.0 into master → ×0.28 out ≈ similar perceived bed loudness.
+ */
+export const BED_SAMPLE_GAIN = 0.38;
 export const CLICK_PEAK_GAIN = 0.34;
-/** Kick / stab / arp voice peaks into the bed bus (pre–bus multiply). */
-export const BED_KICK_GAIN = { idle: 0.16, effect: 0.22, berserk: 0.28 };
-export const BED_STAB_GAIN = { effect: 0.045, berserk: 0.07 };
-export const BED_ARP_GAIN = { effect: 0.022, berserk: 0.035 };
-
-/** A-minor-ish cyber degrees (Hz). */
-const BASS_NOTES = [55, 65.41, 73.42, 82.41];
-const ARP_NOTES = [220, 261.63, 329.63, 392, 440, 523.25];
 
 /**
  * @returns {boolean} true when the player muted sound
@@ -67,7 +72,7 @@ export function writeSoundMuted(muted) {
  */
 
 /**
- * Procedural music bed + click SFX with intensity-driven tempo.
+ * Looping music bed (decoded OGG via Web Audio) + click SFX with intensity-driven rate.
  */
 export class GameAudio {
   constructor() {
@@ -75,19 +80,24 @@ export class GameAudio {
     this._ctx = null;
     /** @type {GainNode | null} */
     this._master = null;
-    /** @type {GainNode | null} bed voices only (click SFX bypasses this) */
+    /** @type {GainNode | null} bed path only (click SFX bypasses this) */
     this._bed = null;
+    /** @type {GainNode | null} */
+    this._sampleGain = null;
+    /** @type {AudioBuffer | null} */
+    this._buffer = null;
+    /** @type {AudioBufferSourceNode | null} */
+    this._source = null;
+    /** @type {Promise<AudioBuffer> | null} */
+    this._loadPromise = null;
     this._muted = readSoundMuted();
     this._unlocked = false;
     /** @type {AudioIntensity} */
     this._intensity = "idle";
-    this._pulseStep = 0;
-    this._nextPulseAt = 0;
-    this._raf = 0;
     this._lastClickAt = 0;
     /** Soft visual spin multiplier for cube coupling (1 = idle). */
     this._feelScale = 1;
-    /** Menu/overlay freeze — pause bed clock (no pulses) until resume. */
+    /** Menu/overlay freeze — duck bed until resume. */
     this._bedPaused = false;
   }
 
@@ -110,13 +120,21 @@ export class GameAudio {
   }
 
   /**
-   * Tempo scale relative to idle (for debugging / light game coupling).
+   * Tempo / playbackRate scale relative to idle.
    * @returns {number}
    */
   getTempoScale() {
-    if (this._intensity === "berserk") return IDLE_INTERVAL / BERSERK_INTERVAL;
-    if (this._intensity === "effect") return IDLE_INTERVAL / EFFECT_INTERVAL;
-    return 1;
+    return this._rateFor(this._intensity);
+  }
+
+  /**
+   * @param {AudioIntensity} intensity
+   * @returns {number}
+   */
+  _rateFor(intensity) {
+    if (intensity === "berserk") return BERSERK_RATE;
+    if (intensity === "effect") return EFFECT_RATE;
+    return IDLE_RATE;
   }
 
   /**
@@ -132,11 +150,13 @@ export class GameAudio {
           // ignore
         }
       }
+      await this._ensureBedPlaying();
       return;
     }
     const AC =
       typeof window !== "undefined"
-        ? window.AudioContext || /** @type {typeof AudioContext | undefined} */ (/** @type {any} */ (window).webkitAudioContext)
+        ? window.AudioContext ||
+          /** @type {typeof AudioContext | undefined} */ (/** @type {any} */ (window).webkitAudioContext)
         : null;
     if (!AC) return;
 
@@ -146,17 +166,104 @@ export class GameAudio {
       this._master.gain.value = this._muted ? 0 : MASTER_GAIN;
       this._master.connect(this._ctx.destination);
       this._bed = this._ctx.createGain();
-      this._bed.gain.value = BED_BUS_GAIN;
+      this._bed.gain.value = this._bedPaused ? 0 : BED_BUS_GAIN;
       this._bed.connect(this._master);
+      this._sampleGain = this._ctx.createGain();
+      this._sampleGain.gain.value = BED_SAMPLE_GAIN;
+      this._sampleGain.connect(this._bed);
       if (this._ctx.state === "suspended") await this._ctx.resume();
       this._unlocked = true;
-      this._nextPulseAt = this._ctx.currentTime + 0.05;
-      this._startScheduler();
+      await this._ensureBedPlaying();
     } catch {
       this._ctx = null;
       this._master = null;
       this._bed = null;
+      this._sampleGain = null;
       this._unlocked = false;
+    }
+  }
+
+  /**
+   * Fetch + decode bed once; start looping BufferSource.
+   * @returns {Promise<void>}
+   */
+  async _ensureBedPlaying() {
+    if (!this._ctx || !this._sampleGain) return;
+    try {
+      if (!this._buffer) {
+        this._buffer = await this._loadBuffer();
+      }
+      if (!this._buffer) return;
+      if (this._source) return;
+      this._startSource();
+    } catch {
+      // decode / network failure — clicks still work
+    }
+  }
+
+  /**
+   * @returns {Promise<AudioBuffer>}
+   */
+  _loadBuffer() {
+    if (this._loadPromise) return this._loadPromise;
+    const ctx = this._ctx;
+    if (!ctx) return Promise.reject(new Error("no audio context"));
+    this._loadPromise = fetch(BED_URL)
+      .then((res) => {
+        if (!res.ok) throw new Error(`bed fetch ${res.status}`);
+        return res.arrayBuffer();
+      })
+      .then((raw) => ctx.decodeAudioData(raw.slice(0)))
+      .catch((err) => {
+        this._loadPromise = null;
+        throw err;
+      });
+    return this._loadPromise;
+  }
+
+  _startSource() {
+    if (!this._ctx || !this._sampleGain || !this._buffer || this._source) return;
+    const src = this._ctx.createBufferSource();
+    src.buffer = this._buffer;
+    src.loop = true;
+    src.playbackRate.value = this._rateFor(this._intensity);
+    src.connect(this._sampleGain);
+    try {
+      src.start(0);
+    } catch {
+      return;
+    }
+    this._source = src;
+    src.onended = () => {
+      if (this._source === src) this._source = null;
+    };
+  }
+
+  _stopSource() {
+    if (!this._source) return;
+    try {
+      this._source.onended = null;
+      this._source.stop();
+    } catch {
+      // already stopped
+    }
+    try {
+      this._source.disconnect();
+    } catch {
+      // ignore
+    }
+    this._source = null;
+  }
+
+  _applyPlaybackRate() {
+    if (!this._source || !this._ctx) return;
+    const now = this._ctx.currentTime;
+    const rate = this._rateFor(this._intensity);
+    try {
+      this._source.playbackRate.cancelScheduledValues(now);
+      this._source.playbackRate.setTargetAtTime(rate, now, 0.04);
+    } catch {
+      this._source.playbackRate.value = rate;
     }
   }
 
@@ -175,8 +282,8 @@ export class GameAudio {
   }
 
   /**
-   * Pause / resume the music bed clock (menu open). Clicks stay available;
-   * mute still zeros the master bus. On resume, re-anchors the pulse timeline.
+   * Pause / resume the music bed (menu open). Clicks stay available;
+   * mute still zeros the master bus.
    * @param {boolean} paused
    */
   setBedPaused(paused) {
@@ -190,7 +297,7 @@ export class GameAudio {
       this._bed.gain.setTargetAtTime(0, now, 0.02);
     } else {
       this._bed.gain.setTargetAtTime(BED_BUS_GAIN, now, 0.04);
-      this._nextPulseAt = now + 0.06;
+      void this._ensureBedPlaying();
     }
   }
 
@@ -208,6 +315,7 @@ export class GameAudio {
     if (intensity === "berserk") this._feelScale = 1.45;
     else if (intensity === "effect") this._feelScale = 1.2;
     else this._feelScale = 1;
+    this._applyPlaybackRate();
   }
 
   /**
@@ -248,106 +356,6 @@ export class GameAudio {
     gain.connect(this._master);
     osc.start(t0);
     osc.stop(t0 + 0.08);
-  }
-
-  _interval() {
-    if (this._intensity === "berserk") return BERSERK_INTERVAL;
-    if (this._intensity === "effect") return EFFECT_INTERVAL;
-    return IDLE_INTERVAL;
-  }
-
-  _startScheduler() {
-    if (this._raf) return;
-    const tick = () => {
-      this._raf = requestAnimationFrame(tick);
-      this._scheduleAhead();
-    };
-    this._raf = requestAnimationFrame(tick);
-  }
-
-  _scheduleAhead() {
-    if (!this._ctx || !this._master) return;
-    if (this._bedPaused) return;
-    const ctx = this._ctx;
-    const horizon = ctx.currentTime + 0.18;
-    while (this._nextPulseAt < horizon) {
-      if (!this._muted) this._emitPulse(this._nextPulseAt, this._pulseStep);
-      this._pulseStep += 1;
-      this._nextPulseAt += this._interval();
-    }
-  }
-
-  /**
-   * @param {number} when
-   * @param {number} step
-   */
-  _emitPulse(when, step) {
-    if (!this._ctx || !this._master || !this._bed) return;
-    const ctx = this._ctx;
-    const bed = this._bed;
-    const intense = this._intensity !== "idle";
-    const berserk = this._intensity === "berserk";
-
-    // Soft kick / sub pulse
-    {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      const base = BASS_NOTES[step % BASS_NOTES.length];
-      osc.frequency.setValueAtTime(base * (berserk ? 1.08 : 1), when);
-      osc.frequency.exponentialRampToValueAtTime(base * 0.5, when + 0.12);
-      const kick = berserk
-        ? BED_KICK_GAIN.berserk
-        : intense
-          ? BED_KICK_GAIN.effect
-          : BED_KICK_GAIN.idle;
-      gain.gain.setValueAtTime(0.0001, when);
-      gain.gain.exponentialRampToValueAtTime(kick, when + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.16);
-      osc.connect(gain);
-      gain.connect(bed);
-      osc.start(when);
-      osc.stop(when + 0.18);
-    }
-
-    // Mid cyber stab every other beat (every beat in berserk)
-    if (berserk || step % 2 === 0) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sawtooth";
-      const note = ARP_NOTES[(step * 2) % ARP_NOTES.length];
-      osc.frequency.setValueAtTime(note, when);
-      osc.frequency.exponentialRampToValueAtTime(note * 1.5, when + 0.05);
-      const stab = berserk ? BED_STAB_GAIN.berserk : BED_STAB_GAIN.effect;
-      gain.gain.setValueAtTime(0.0001, when);
-      gain.gain.exponentialRampToValueAtTime(stab, when + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.09);
-      osc.connect(gain);
-      gain.connect(bed);
-      osc.start(when);
-      osc.stop(when + 0.1);
-    }
-
-    // Dense high arp ticks when boosted
-    if (intense) {
-      const extra = berserk ? 2 : 1;
-      for (let i = 0; i < extra; i++) {
-        const t = when + (i + 1) * (this._interval() / (extra + 1));
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "square";
-        const note = ARP_NOTES[(step + i + 3) % ARP_NOTES.length] * 2;
-        const arp = berserk ? BED_ARP_GAIN.berserk : BED_ARP_GAIN.effect;
-        osc.frequency.setValueAtTime(note, t);
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(arp, t + 0.005);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-        osc.connect(gain);
-        gain.connect(bed);
-        osc.start(t);
-        osc.stop(t + 0.05);
-      }
-    }
   }
 }
 
