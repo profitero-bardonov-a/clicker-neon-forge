@@ -22,6 +22,19 @@ const BERSERK_INTERVAL = 0.22;
 
 const CLICK_MIN_GAP_MS = 38;
 
+/**
+ * Loudness (prod feedback: bed was too quiet).
+ * Master mute still zeros MASTER_GAIN. Bed bus multiplies voice peaks only.
+ * Prev master 0.22 → 0.28; bed bus 1.0 → 2.6 (~2.6× bed); click peak 0.18 → 0.34.
+ */
+export const MASTER_GAIN = 0.28;
+export const BED_BUS_GAIN = 2.6;
+export const CLICK_PEAK_GAIN = 0.34;
+/** Kick / stab / arp voice peaks into the bed bus (pre–bus multiply). */
+export const BED_KICK_GAIN = { idle: 0.16, effect: 0.22, berserk: 0.28 };
+export const BED_STAB_GAIN = { effect: 0.045, berserk: 0.07 };
+export const BED_ARP_GAIN = { effect: 0.022, berserk: 0.035 };
+
 /** A-minor-ish cyber degrees (Hz). */
 const BASS_NOTES = [55, 65.41, 73.42, 82.41];
 const ARP_NOTES = [220, 261.63, 329.63, 392, 440, 523.25];
@@ -62,6 +75,8 @@ export class GameAudio {
     this._ctx = null;
     /** @type {GainNode | null} */
     this._master = null;
+    /** @type {GainNode | null} bed voices only (click SFX bypasses this) */
+    this._bed = null;
     this._muted = readSoundMuted();
     this._unlocked = false;
     /** @type {AudioIntensity} */
@@ -72,6 +87,8 @@ export class GameAudio {
     this._lastClickAt = 0;
     /** Soft visual spin multiplier for cube coupling (1 = idle). */
     this._feelScale = 1;
+    /** Menu/overlay freeze — pause bed clock (no pulses) until resume. */
+    this._bedPaused = false;
   }
 
   /** @returns {boolean} */
@@ -126,8 +143,11 @@ export class GameAudio {
     try {
       this._ctx = new AC();
       this._master = this._ctx.createGain();
-      this._master.gain.value = this._muted ? 0 : 0.22;
+      this._master.gain.value = this._muted ? 0 : MASTER_GAIN;
       this._master.connect(this._ctx.destination);
+      this._bed = this._ctx.createGain();
+      this._bed.gain.value = BED_BUS_GAIN;
+      this._bed.connect(this._master);
       if (this._ctx.state === "suspended") await this._ctx.resume();
       this._unlocked = true;
       this._nextPulseAt = this._ctx.currentTime + 0.05;
@@ -135,6 +155,7 @@ export class GameAudio {
     } catch {
       this._ctx = null;
       this._master = null;
+      this._bed = null;
       this._unlocked = false;
     }
   }
@@ -149,8 +170,33 @@ export class GameAudio {
     if (this._master && this._ctx) {
       const now = this._ctx.currentTime;
       this._master.gain.cancelScheduledValues(now);
-      this._master.gain.setTargetAtTime(this._muted ? 0 : 0.22, now, 0.03);
+      this._master.gain.setTargetAtTime(this._muted ? 0 : MASTER_GAIN, now, 0.03);
     }
+  }
+
+  /**
+   * Pause / resume the music bed clock (menu open). Clicks stay available;
+   * mute still zeros the master bus. On resume, re-anchors the pulse timeline.
+   * @param {boolean} paused
+   */
+  setBedPaused(paused) {
+    const next = Boolean(paused);
+    if (this._bedPaused === next) return;
+    this._bedPaused = next;
+    if (!this._ctx || !this._bed) return;
+    const now = this._ctx.currentTime;
+    this._bed.gain.cancelScheduledValues(now);
+    if (next) {
+      this._bed.gain.setTargetAtTime(0, now, 0.02);
+    } else {
+      this._bed.gain.setTargetAtTime(BED_BUS_GAIN, now, 0.04);
+      this._nextPulseAt = now + 0.06;
+    }
+  }
+
+  /** @returns {boolean} */
+  get bedPaused() {
+    return this._bedPaused;
   }
 
   /**
@@ -196,7 +242,7 @@ export class GameAudio {
     osc.frequency.setValueAtTime(720 * bright, t0);
     osc.frequency.exponentialRampToValueAtTime(180 * bright, t0 + 0.06);
     gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(CLICK_PEAK_GAIN, t0 + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
     osc.connect(gain);
     gain.connect(this._master);
@@ -221,6 +267,7 @@ export class GameAudio {
 
   _scheduleAhead() {
     if (!this._ctx || !this._master) return;
+    if (this._bedPaused) return;
     const ctx = this._ctx;
     const horizon = ctx.currentTime + 0.18;
     while (this._nextPulseAt < horizon) {
@@ -235,9 +282,9 @@ export class GameAudio {
    * @param {number} step
    */
   _emitPulse(when, step) {
-    if (!this._ctx || !this._master) return;
+    if (!this._ctx || !this._master || !this._bed) return;
     const ctx = this._ctx;
-    const master = this._master;
+    const bed = this._bed;
     const intense = this._intensity !== "idle";
     const berserk = this._intensity === "berserk";
 
@@ -249,11 +296,16 @@ export class GameAudio {
       const base = BASS_NOTES[step % BASS_NOTES.length];
       osc.frequency.setValueAtTime(base * (berserk ? 1.08 : 1), when);
       osc.frequency.exponentialRampToValueAtTime(base * 0.5, when + 0.12);
+      const kick = berserk
+        ? BED_KICK_GAIN.berserk
+        : intense
+          ? BED_KICK_GAIN.effect
+          : BED_KICK_GAIN.idle;
       gain.gain.setValueAtTime(0.0001, when);
-      gain.gain.exponentialRampToValueAtTime(berserk ? 0.28 : intense ? 0.22 : 0.16, when + 0.012);
+      gain.gain.exponentialRampToValueAtTime(kick, when + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.16);
       osc.connect(gain);
-      gain.connect(master);
+      gain.connect(bed);
       osc.start(when);
       osc.stop(when + 0.18);
     }
@@ -266,11 +318,12 @@ export class GameAudio {
       const note = ARP_NOTES[(step * 2) % ARP_NOTES.length];
       osc.frequency.setValueAtTime(note, when);
       osc.frequency.exponentialRampToValueAtTime(note * 1.5, when + 0.05);
+      const stab = berserk ? BED_STAB_GAIN.berserk : BED_STAB_GAIN.effect;
       gain.gain.setValueAtTime(0.0001, when);
-      gain.gain.exponentialRampToValueAtTime(berserk ? 0.07 : 0.045, when + 0.01);
+      gain.gain.exponentialRampToValueAtTime(stab, when + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.09);
       osc.connect(gain);
-      gain.connect(master);
+      gain.connect(bed);
       osc.start(when);
       osc.stop(when + 0.1);
     }
@@ -284,12 +337,13 @@ export class GameAudio {
         const gain = ctx.createGain();
         osc.type = "square";
         const note = ARP_NOTES[(step + i + 3) % ARP_NOTES.length] * 2;
+        const arp = berserk ? BED_ARP_GAIN.berserk : BED_ARP_GAIN.effect;
         osc.frequency.setValueAtTime(note, t);
         gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(berserk ? 0.035 : 0.022, t + 0.005);
+        gain.gain.exponentialRampToValueAtTime(arp, t + 0.005);
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
         osc.connect(gain);
-        gain.connect(master);
+        gain.connect(bed);
         osc.start(t);
         osc.stop(t + 0.05);
       }

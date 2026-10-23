@@ -25,6 +25,10 @@ let firstClickTracked = false;
 let tipFrozen = false;
 /** Wall-clock anchor for tip freeze (separate from leaderboard pause). */
 let tipPauseAnchor = 0;
+/** Soft-freeze while the burger menu is open (effects + bed; no pause glyph). */
+let menuFrozen = false;
+/** Wall-clock anchor for menu freeze. */
+let menuPauseAnchor = 0;
 
 /** @type {ReturnType<typeof initEffectTips> | null} */
 let effectTips = null;
@@ -44,25 +48,46 @@ function unfreezeTip() {
 
 initI18n(/** @type {HTMLElement} */ (document.getElementById("locale-list")));
 
-const menu = initMenu({
-  root: /** @type {HTMLElement} */ (document.getElementById("app-menu")),
-  button: /** @type {HTMLButtonElement} */ (document.getElementById("menu-btn")),
-  closeBtn: /** @type {HTMLButtonElement} */ (document.getElementById("menu-close")),
-  backdrop: /** @type {HTMLElement} */ (document.getElementById("menu-backdrop")),
-  onClose: () => effectTips?.resume(),
-});
-
-initPwa({
-  button: /** @type {HTMLButtonElement} */ (document.getElementById("pwa-install")),
-  section: document.getElementById("pwa-install-section"),
-});
-
 const audio = new GameAudio();
 initSoundToggle({
   audio,
   button: /** @type {HTMLButtonElement} */ (document.getElementById("sound-toggle")),
   t,
   onLocaleChange,
+});
+
+function freezeForMenu() {
+  if (menuFrozen) return;
+  menuFrozen = true;
+  menuPauseAnchor = performance.now();
+  audio.setBedPaused(true);
+}
+
+function unfreezeMenu() {
+  if (!menuFrozen) return;
+  if (menuPauseAnchor) {
+    effects.shiftClock(performance.now() - menuPauseAnchor);
+    menuPauseAnchor = 0;
+  }
+  menuFrozen = false;
+  audio.setBedPaused(false);
+}
+
+const menu = initMenu({
+  root: /** @type {HTMLElement} */ (document.getElementById("app-menu")),
+  button: /** @type {HTMLButtonElement} */ (document.getElementById("menu-btn")),
+  closeBtn: /** @type {HTMLButtonElement} */ (document.getElementById("menu-close")),
+  backdrop: /** @type {HTMLElement} */ (document.getElementById("menu-backdrop")),
+  onOpen: () => freezeForMenu(),
+  onClose: () => {
+    unfreezeMenu();
+    effectTips?.resume();
+  },
+});
+
+initPwa({
+  button: /** @type {HTMLButtonElement} */ (document.getElementById("pwa-install")),
+  section: document.getElementById("pwa-install-section"),
 });
 
 const aboutRoot = /** @type {HTMLElement} */ (document.getElementById("about"));
@@ -643,7 +668,11 @@ function frame(now) {
     effects.shiftClock(now - tipPauseAnchor);
     tipPauseAnchor = now;
   }
-  const dt = paused || tipFrozen ? 0 : Math.min(0.033, elapsed / 1000);
+  if (menuFrozen && menuPauseAnchor) {
+    effects.shiftClock(now - menuPauseAnchor);
+    menuPauseAnchor = now;
+  }
+  const dt = paused || tipFrozen || menuFrozen ? 0 : Math.min(0.033, elapsed / 1000);
 
   const layout = layoutState();
   const drain = effects.update(dt, layout);

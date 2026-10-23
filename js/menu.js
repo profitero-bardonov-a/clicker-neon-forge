@@ -5,17 +5,20 @@
  *   button: HTMLButtonElement,
  *   closeBtn: HTMLButtonElement,
  *   backdrop: HTMLElement,
+ *   onOpen?: () => void,
  *   onClose?: () => void,
  * }} ui
  */
 export function initMenu(ui) {
-  const { root, button, closeBtn, backdrop, onClose } = ui;
+  const { root, button, closeBtn, backdrop, onOpen, onClose } = ui;
 
   function open() {
+    const wasClosed = root.hidden;
     root.hidden = false;
     button.setAttribute("aria-expanded", "true");
     button.classList.add("is-open");
     document.body.classList.add("is-menu-open");
+    if (wasClosed) onOpen?.();
   }
 
   function close() {

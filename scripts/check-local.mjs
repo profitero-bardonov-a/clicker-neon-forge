@@ -131,12 +131,24 @@ function assertI18n() {
 async function assertAudio() {
   const {
     SOUND_MUTED_KEY,
+    MASTER_GAIN,
+    BED_BUS_GAIN,
+    CLICK_PEAK_GAIN,
     GameAudio,
     readSoundMuted,
     writeSoundMuted,
   } = await import(join(root, "js/audio.js"));
   if (SOUND_MUTED_KEY !== "neon-forge-sound-muted") {
     throw new Error("sound mute storage key must stay neon-forge-sound-muted");
+  }
+  if (!(MASTER_GAIN >= 0.25 && MASTER_GAIN <= 0.4)) {
+    throw new Error(`MASTER_GAIN out of expected audible range (got ${MASTER_GAIN})`);
+  }
+  if (!(BED_BUS_GAIN >= 2.2 && BED_BUS_GAIN <= 3.2)) {
+    throw new Error(`BED_BUS_GAIN must stay ~2–3× louder bed (got ${BED_BUS_GAIN})`);
+  }
+  if (!(CLICK_PEAK_GAIN >= 0.28 && CLICK_PEAK_GAIN <= 0.45)) {
+    throw new Error(`CLICK_PEAK_GAIN should stay audible vs louder bed (got ${CLICK_PEAK_GAIN})`);
   }
 
   const store = new Map();
@@ -184,6 +196,13 @@ async function assertAudio() {
   if (!mainSrc.includes("initSoundToggle")) {
     throw new Error("main.js must wire sound menu toggle");
   }
+  if (!mainSrc.includes("freezeForMenu") || !mainSrc.includes("menuFrozen") || !mainSrc.includes("setBedPaused")) {
+    throw new Error("main.js must freeze gameplay + bed while menu is open");
+  }
+  const menuSrc = readFileSync(join(root, "js/menu.js"), "utf8");
+  if (!menuSrc.includes("onOpen")) {
+    throw new Error("menu.js must support onOpen for gameplay freeze");
+  }
   const fxSrc = readFileSync(join(root, "js/effects.js"), "utf8");
   if (!fxSrc.includes("isBerserkActive")) {
     throw new Error("effects.js must expose isBerserkActive for audio boost");
@@ -194,6 +213,9 @@ async function assertAudio() {
   }
   if (!audioSrc.includes("AudioContext")) {
     throw new Error("audio must use Web Audio (no paid SaaS)");
+  }
+  if (!audioSrc.includes("setBedPaused")) {
+    throw new Error("audio.js must expose setBedPaused for menu freeze");
   }
 }
 
