@@ -196,6 +196,13 @@ async function assertAudio() {
   if (!mainSrc.includes("initSoundToggle")) {
     throw new Error("main.js must wire sound menu toggle");
   }
+  if (!mainSrc.includes("freezeForMenu") || !mainSrc.includes("menuFrozen") || !mainSrc.includes("setBedPaused")) {
+    throw new Error("main.js must freeze gameplay + bed while menu is open");
+  }
+  const menuSrc = readFileSync(join(root, "js/menu.js"), "utf8");
+  if (!menuSrc.includes("onOpen")) {
+    throw new Error("menu.js must support onOpen for gameplay freeze");
+  }
   const fxSrc = readFileSync(join(root, "js/effects.js"), "utf8");
   if (!fxSrc.includes("isBerserkActive")) {
     throw new Error("effects.js must expose isBerserkActive for audio boost");
@@ -206,6 +213,9 @@ async function assertAudio() {
   }
   if (!audioSrc.includes("AudioContext")) {
     throw new Error("audio must use Web Audio (no paid SaaS)");
+  }
+  if (!audioSrc.includes("setBedPaused")) {
+    throw new Error("audio.js must expose setBedPaused for menu freeze");
   }
 }
 

@@ -87,6 +87,8 @@ export class GameAudio {
     this._lastClickAt = 0;
     /** Soft visual spin multiplier for cube coupling (1 = idle). */
     this._feelScale = 1;
+    /** Menu/overlay freeze — pause bed clock (no pulses) until resume. */
+    this._bedPaused = false;
   }
 
   /** @returns {boolean} */
@@ -173,6 +175,31 @@ export class GameAudio {
   }
 
   /**
+   * Pause / resume the music bed clock (menu open). Clicks stay available;
+   * mute still zeros the master bus. On resume, re-anchors the pulse timeline.
+   * @param {boolean} paused
+   */
+  setBedPaused(paused) {
+    const next = Boolean(paused);
+    if (this._bedPaused === next) return;
+    this._bedPaused = next;
+    if (!this._ctx || !this._bed) return;
+    const now = this._ctx.currentTime;
+    this._bed.gain.cancelScheduledValues(now);
+    if (next) {
+      this._bed.gain.setTargetAtTime(0, now, 0.02);
+    } else {
+      this._bed.gain.setTargetAtTime(BED_BUS_GAIN, now, 0.04);
+      this._nextPulseAt = now + 0.06;
+    }
+  }
+
+  /** @returns {boolean} */
+  get bedPaused() {
+    return this._bedPaused;
+  }
+
+  /**
    * @param {AudioIntensity} intensity
    */
   setIntensity(intensity) {
@@ -240,6 +267,7 @@ export class GameAudio {
 
   _scheduleAhead() {
     if (!this._ctx || !this._master) return;
+    if (this._bedPaused) return;
     const ctx = this._ctx;
     const horizon = ctx.currentTime + 0.18;
     while (this._nextPulseAt < horizon) {
