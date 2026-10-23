@@ -862,6 +862,11 @@ body.is-paused .float-text {
   border-color: transparent;
 }
 
+.menu__action--toggle.is-muted {
+  border-color: rgba(106, 130, 150, 0.45);
+  color: var(--muted);
+}
+
 .menu__contact {
   display: block;
   border: 1px solid rgba(61, 231, 255, 0.25);

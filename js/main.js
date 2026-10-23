@@ -17,6 +17,7 @@ import { initEffectTips } from "./effect-tips.js";
 import { initMilestones } from "./milestones.js";
 import { initQuestionGift } from "./question-gift.js";
 import { initShop } from "./shop.js";
+import { GameAudio, initSoundToggle } from "./audio.js";
 
 const TAP_HINT_KEY = "neon-forge-tap-hint-seen";
 let firstClickTracked = false;
@@ -54,6 +55,14 @@ const menu = initMenu({
 initPwa({
   button: /** @type {HTMLButtonElement} */ (document.getElementById("pwa-install")),
   section: document.getElementById("pwa-install-section"),
+});
+
+const audio = new GameAudio();
+initSoundToggle({
+  audio,
+  button: /** @type {HTMLButtonElement} */ (document.getElementById("sound-toggle")),
+  t,
+  onLocaleChange,
 });
 
 const aboutRoot = /** @type {HTMLElement} */ (document.getElementById("about"));
@@ -523,6 +532,9 @@ function onPointerDown(e) {
   if (paused) return;
   e.preventDefault();
 
+  void audio.unlock();
+  audio.playClick();
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -639,9 +651,13 @@ function frame(now) {
     applyDelta(drain, 0, 0, { fromCounter: true, hitCube: false });
   }
 
+  audio.syncFromEffects(effects);
+  // Light visual tempo couple: cube spins a bit faster when audio is boosted.
+  const feelDt = dt * (1 + (audio.getFeelScale() - 1) * 0.55);
+
   const cubeLayout = effects.getCubeLayout(layout);
 
-  cube.update(dt);
+  cube.update(feelDt);
   particles.update(dt);
 
   drawBackground(ctx, cubeLayout.cx, cubeLayout.cy);
