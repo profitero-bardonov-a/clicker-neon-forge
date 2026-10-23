@@ -1,12 +1,21 @@
 /**
  * Local ~60s gameplay reel for screen recording (Shorts / Reels).
  * Open with `?demo=1` — no pause, main effects only.
+ *
+ * QA: `?berserk=1` forces one Berserk chain soon after load (prod-safe verify).
  */
 
 /** @returns {boolean} */
 export function isDemoMode() {
   if (typeof location === "undefined") return false;
   return new URLSearchParams(location.search).has("demo");
+}
+
+/** Force-start Berserk for visual QA without changing schedule rarity. */
+/** @returns {boolean} */
+export function isBerserkDemo() {
+  if (typeof location === "undefined") return false;
+  return new URLSearchParams(location.search).has("berserk");
 }
 
 /**
