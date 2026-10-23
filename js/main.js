@@ -9,7 +9,7 @@ import { initMenu } from "./menu.js";
 import { EffectRuntime } from "./effects.js";
 import { FloatTexts } from "./float-texts.js";
 import { isLocalDevHost } from "./leaderboard-stubs.js";
-import { isDemoMode, startDemoReel } from "./demo-reel.js";
+import { isBerserkDemo, isDemoMode, startDemoReel } from "./demo-reel.js";
 import { initPwa } from "./pwa.js";
 import { trackEvent } from "./analytics.js";
 import { initEffectsTip } from "./onboarding-tip.js";
@@ -201,6 +201,11 @@ const effects = new EffectRuntime({
   rimEl: /** @type {HTMLElement} */ (document.getElementById("effect-rim")),
   countdownEl: /** @type {HTMLElement} */ (document.getElementById("effect-countdown")),
   labelEl: /** @type {HTMLElement} */ (document.getElementById("effect-label")),
+  berserkBannerEl: /** @type {HTMLElement | null} */ (document.getElementById("berserk-banner")),
+  berserkTitleEl: /** @type {HTMLElement | null} */ (document.getElementById("berserk-banner-title")),
+  berserkProgressEl: /** @type {HTMLElement | null} */ (
+    document.getElementById("berserk-banner-progress")
+  ),
   onEffectStart: (id) => effectTips?.noteEffect(id),
 });
 effects.start();
@@ -720,4 +725,10 @@ if (isDemoMode()) {
     counter,
     layoutState,
   });
+} else if (isBerserkDemo()) {
+  // Prod/local visual QA: force one Berserk chain without changing schedule rarity.
+  effects.autoSchedule = false;
+  window.setTimeout(() => {
+    effects.beginEffect("berserk");
+  }, 900);
 }

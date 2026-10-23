@@ -110,6 +110,7 @@ function assertI18n() {
     "leadersCountLabel",
     "effectBerserk",
     "effectBerserkLabel",
+    "effectBerserkProgress",
     "effectTipName_berserk",
     "effectTipBody_berserk",
     "effectTipName_click_x2",
@@ -151,6 +152,28 @@ function assertEffectsGate() {
   }
   if (!src.includes("_startBerserk") || !src.includes("_berserkLeft")) {
     throw new Error("effects.js must implement berserk chain");
+  }
+  if (!src.includes("_syncBerserkBanner") || !src.includes("berserkBannerEl")) {
+    throw new Error("effects.js must drive a dedicated Berserk banner");
+  }
+  const css = readFileSync(join(root, "css/styles.css"), "utf8");
+  if (!css.includes("berserk-banner") || !css.includes("fx-rim-berserk")) {
+    throw new Error("styles.css must style Berserk banner + orange rim pulse");
+  }
+  if (!css.includes("255, 148, 32") && !css.includes("#ff9a28")) {
+    throw new Error("Berserk rim/banner must use clear orange");
+  }
+  const html = readFileSync(join(root, "index.html"), "utf8");
+  if (!html.includes('id="berserk-banner"')) {
+    throw new Error("index.html must include #berserk-banner");
+  }
+  const demo = readFileSync(join(root, "js/demo-reel.js"), "utf8");
+  if (!demo.includes("isBerserkDemo")) {
+    throw new Error("demo-reel.js must export isBerserkDemo for ?berserk=1 QA");
+  }
+  const mainSrc = readFileSync(join(root, "js/main.js"), "utf8");
+  if (!mainSrc.includes("isBerserkDemo") || !mainSrc.includes('beginEffect("berserk")')) {
+    throw new Error("main.js must wire ?berserk=1 to force a Berserk chain");
   }
 }
 
@@ -223,24 +246,55 @@ async function assertNewEffects() {
   }
   if (fx.resolveClick(hit) !== 1) throw new Error("quake cube hit must stay +1");
 
-  fx.beginEffect("berserk");
-  if (fx._berserkTotal !== 5) throw new Error("berserk must start a 5-link chain");
-  if (!fx.active || fx.active.id === "berserk") {
+  const banner = { hidden: true, setAttribute() {} };
+  const bannerTitle = { textContent: "" };
+  const bannerProgress = { textContent: "" };
+  const fxBanner = new EffectRuntime({
+    rimEl: /** @type {any} */ (rim),
+    countdownEl: /** @type {any} */ (countdown),
+    labelEl: /** @type {any} */ (label),
+    berserkBannerEl: /** @type {any} */ (banner),
+    berserkTitleEl: /** @type {any} */ (bannerTitle),
+    berserkProgressEl: /** @type {any} */ (bannerProgress),
+  });
+  fxBanner.autoSchedule = false;
+
+  fxBanner.beginEffect("berserk");
+  if (fxBanner._berserkTotal !== 5) throw new Error("berserk must start a 5-link chain");
+  if (!fxBanner.active || fxBanner.active.id === "berserk") {
     throw new Error("berserk must immediately start a non-meta link effect");
   }
-  const firstLink = fx.active.id;
-  fx.endEffect({ reschedule: false });
-  if (fx._berserkLeft < 0) throw new Error("berserk chain counter went negative");
-  if (fx._berserkTotal === 5 && fx._berserkLeft === 0 && !fx.active) {
+  if (banner.hidden) throw new Error("berserk must show the dedicated banner");
+  if (!String(bannerTitle.textContent).toUpperCase().includes("BERSERK")) {
+    throw new Error("berserk banner title must say BERSERK");
+  }
+  const firstLink = fxBanner.active.id;
+  // Rim label is the link effect — not a buried "BERSERK · …" string.
+  if (String(label.textContent).includes("BERSERK") || String(label.textContent).includes("БЕРСЕРК")) {
+    throw new Error("rim label should not duplicate the Berserk banner shout");
+  }
+  fxBanner.endEffect({ reschedule: false });
+  if (fxBanner._berserkLeft < 0) throw new Error("berserk chain counter went negative");
+  if (fxBanner._berserkTotal === 5 && fxBanner._berserkLeft === 0 && !fxBanner.active) {
     // finished early somehow — still OK if chain ran
-  } else if (!fx.active && fx._berserkLeft > 0) {
+  } else if (!fxBanner.active && fxBanner._berserkLeft > 0) {
     throw new Error("berserk should keep chaining until links are exhausted");
-  } else if (fx.active && fx.active.id === firstLink && fx._berserkLeft === 4) {
+  } else if (fxBanner.active && fxBanner.active.id === firstLink && fxBanner._berserkLeft === 4) {
     // same id can re-roll; counter should have decremented for the next pending link already
   }
 
+  // Keep a second runtime for the older chain smoke without banner stubs.
+  fx.beginEffect("berserk");
+  if (fx._berserkTotal !== 5) throw new Error("berserk must start a 5-link chain (no banner)");
+
   const i18n = readFileSync(join(root, "js/i18n.js"), "utf8");
-  for (const key of ["effectOvercharge", "effectNeonOrb", "effectQuake", "effectBerserk"]) {
+  for (const key of [
+    "effectOvercharge",
+    "effectNeonOrb",
+    "effectQuake",
+    "effectBerserk",
+    "effectBerserkProgress",
+  ]) {
     const count = i18n.split(key).length - 1;
     if (count < 5) throw new Error(`${key} must appear in all 5 locales (found ${count})`);
   }

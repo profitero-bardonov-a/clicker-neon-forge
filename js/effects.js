@@ -85,6 +85,9 @@ export class EffectRuntime {
    *   rimEl: HTMLElement,
    *   countdownEl: HTMLElement,
    *   labelEl: HTMLElement,
+   *   berserkBannerEl?: HTMLElement | null,
+   *   berserkTitleEl?: HTMLElement | null,
+   *   berserkProgressEl?: HTMLElement | null,
    *   onEffectStart?: (id: string) => void,
    * }} ui
    */
@@ -92,6 +95,9 @@ export class EffectRuntime {
     this.rimEl = ui.rimEl;
     this.countdownEl = ui.countdownEl;
     this.labelEl = ui.labelEl;
+    this.berserkBannerEl = ui.berserkBannerEl || null;
+    this.berserkTitleEl = ui.berserkTitleEl || null;
+    this.berserkProgressEl = ui.berserkProgressEl || null;
     this.onEffectStart = ui.onEffectStart || null;
 
     /** @type {ActiveEffect | null} */
@@ -247,6 +253,34 @@ export class EffectRuntime {
     this.labelEl.classList.remove("is-on-photo");
     this.labelEl.style.left = "";
     this.labelEl.style.top = "";
+    // Keep the Berserk shout visible between chain links.
+    if (this._berserkLeft <= 0) this._hideBerserkBanner();
+  }
+
+  _hideBerserkBanner() {
+    if (!this.berserkBannerEl) return;
+    this.berserkBannerEl.hidden = true;
+    this.berserkBannerEl.setAttribute("aria-hidden", "true");
+    if (this.berserkProgressEl) this.berserkProgressEl.textContent = "";
+  }
+
+  /** Large orange HUD while a Berserk chain is running. */
+  _syncBerserkBanner() {
+    if (!this.berserkBannerEl) return;
+    if (this._berserkTotal <= 0) {
+      this._hideBerserkBanner();
+      return;
+    }
+    const n = this._berserkTotal - this._berserkLeft;
+    if (this.berserkTitleEl) this.berserkTitleEl.textContent = t("effectBerserk");
+    if (this.berserkProgressEl) {
+      this.berserkProgressEl.textContent = t("effectBerserkProgress", {
+        n,
+        total: this._berserkTotal,
+      });
+    }
+    this.berserkBannerEl.hidden = false;
+    this.berserkBannerEl.setAttribute("aria-hidden", "false");
   }
 
   _scheduleNext() {
@@ -285,6 +319,7 @@ export class EffectRuntime {
       def && "chainCount" in def ? Math.max(1, Math.floor(Number(def.chainCount) || 5)) : 5;
     this._berserkTotal = count;
     this._berserkLeft = count;
+    this._syncBerserkBanner();
     this.onEffectStart?.("berserk");
     this._beginBerserkLink();
   }
@@ -368,6 +403,7 @@ export class EffectRuntime {
     this.countdownEl.classList.toggle("is-positive", polarity === "positive");
     this.countdownEl.classList.toggle("is-negative", polarity === "negative");
     this.labelEl.textContent = this._labelFor(def);
+    this._syncBerserkBanner();
     this._syncCountdown(now);
     if (!opts.skipStartHook) this.onEffectStart?.(id);
   }
@@ -434,12 +470,8 @@ export class EffectRuntime {
                 : "photoHit" in def
                   ? def.photoHit
                   : undefined;
-    const base = t(def.labelKey || "leaders", x == null ? undefined : { x });
-    if (this._berserkTotal > 0) {
-      const n = this._berserkTotal - this._berserkLeft;
-      return t("effectBerserkLabel", { n, total: this._berserkTotal, label: base });
-    }
-    return base;
+    // Berserk identity lives on the dedicated banner; rim label stays the link effect.
+    return t(def.labelKey || "leaders", x == null ? undefined : { x });
   }
 
   /**
@@ -716,6 +748,7 @@ export class EffectRuntime {
   }
 
   refreshLabel() {
+    if (this._berserkTotal > 0) this._syncBerserkBanner();
     if (!this.active) return;
     this.labelEl.textContent = this._labelFor(this.active.def);
   }
